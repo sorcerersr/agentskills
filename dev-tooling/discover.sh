@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # discover.sh — dev-tooling probe
 #
-# Reports, in exactly 3 lines, which dev tools are ACTUALLY present in this
+# Reports, in 3-4 lines, which dev tools are ACTUALLY present in this
 # environment. Run it once per session and trust the result for the rest of the
 # session. It is read-only and idempotent: it installs nothing and mutates
 # nothing, so it is safe to run in any state.
 #
 # Output:
-#   PRESENT:  space-separated names of the tools that are available
+#   PRESENT:  tools invocable by bare name (on PATH) — the zero-friction set
+#   jdkbin:   Java tools installed under $JAVA_HOME/bin but NOT on PATH
+#             (call as $JAVA_HOME/bin/<tool>); shown only when such tools exist
 #   runtime:  versions of the major runtimes (java / cargo / node / py)
 #   env:      OS / user / JAVA_HOME / network reachability
 #
@@ -16,15 +18,20 @@
 #   cargo   -> `command -v cargo-X`          (cargo subcommand, used as `cargo X`)
 #   py      -> `python3 -c "import X"`       (Python library, not a CLI)
 #
+# JDK tools get one more fallback: a row marked `JDK` that is not on PATH is also
+# checked under $JAVA_HOME/bin, because the JDK ships more tools than this
+# container symlinks onto PATH (e.g. jdeps, jshell, jlink).
+#
 # SINGLE SOURCE OF TRUTH: the TOOLS table below is the authoritative list of
 # what to look for. If you add a tool to the catalog in SKILL.md, add its row
 # here (and only here). Presence is decided by this probe, never asserted by
 # the catalog.
 #
-# Row format:  <name>  <kind>  <target>
-#   name    display name shown on the PRESENT line
+# Row format:  <name>  <kind>  <target>  [home]
+#   name    display name shown on the PRESENT / jdkbin line
 #   kind    bin | cargo | py
 #   target  the thing to test (binary / cargo subcommand / python module)
+#   home    optional; `JDK` = also check $JAVA_HOME/bin when not on PATH
 
 set -u
 
@@ -37,22 +44,27 @@ probe() { # $1 = kind, $2 = target ; returns 0 (present) or non-zero (absent)
 }
 
 present=""
-while read -r name kind target _; do
+jdkbin=""
+while read -r name kind target home _; do
   [ -z "$name" ] && continue
   case "$name" in \#*) continue ;; esac   # skip comment/blank lines in the table
-  probe "$kind" "$target" && present="$present $name"
+  if probe "$kind" "$target"; then
+    present="$present $name"
+  elif [ "${home:-}" = "JDK" ] && [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/$target" ]; then
+    jdkbin="$jdkbin $name"                  # installed under $JAVA_HOME/bin, not on PATH
+  fi
 done <<'TOOLS'
-# Java / Maven
-java      bin   java
-javac     bin   javac
+# Java / Maven  (JDK tools also checked under $JAVA_HOME/bin when off-PATH)
+java      bin   java      JDK
+javac     bin   javac     JDK
 mvn       bin   mvn
 cfr       bin   cfr
-javap     bin   javap
-jdeps     bin   jdeps
-jshell    bin   jshell
-jar       bin   jar
-javadoc   bin   javadoc
-jlink     bin   jlink
+javap     bin   javap     JDK
+jdeps     bin   jdeps     JDK
+jshell    bin   jshell    JDK
+jar       bin   jar       JDK
+javadoc   bin   javadoc   JDK
+jlink     bin   jlink     JDK
 # Rust
 rustc         bin   rustc
 cargo         bin   cargo
@@ -98,6 +110,7 @@ magick     bin magick
 godot      bin godot
 TOOLS
 present=${present# }
+jdkbin=${jdkbin# }
 
 # --- runtime versions (each guarded; a missing runtime just prints "?") ---
 java_v=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
@@ -114,5 +127,8 @@ else
 fi
 
 echo "PRESENT: ${present:-none}"
+if [ -n "$jdkbin" ]; then
+  echo "jdkbin:  ${jdkbin}   (in \$JAVA_HOME/bin, not on PATH -> call as \$JAVA_HOME/bin/<tool>)"
+fi
 echo "runtime: java ${java_v:-?} cargo ${cargo_v:-?} node ${node_v:-?} py ${py_v:-?}"
 echo "env: ${os} user=$(whoami 2>/dev/null || echo ?) JAVA_HOME=${JAVA_HOME:-none} net=${net}"

@@ -19,10 +19,11 @@ Two sources of truth, never one:
 
 ## Workflow
 
-1. **Probe once.** Run `bash <skill-dir>/discover.sh` and read the three lines.
-   *Done when* you hold the `PRESENT:`, `runtime:`, and `env:` lines. Re-run only if the
-   environment changes (different container, user switches machines). (If the probe itself
-   cannot run, fall back to checking each catalog tool individually.)
+1. **Probe once.** Run `bash <skill-dir>/discover.sh` and read its output.
+   *Done when* you hold the `PRESENT:`, `runtime:`, and `env:` lines (plus `jdkbin:` when
+   it appears). Re-run only if the environment changes (different container, user switches
+   machines). (If the probe itself cannot run, fall back to checking each catalog tool
+   individually.)
 2. **Pick from the catalog**, constrained to the tools on the `PRESENT:` line.
 3. **Preferred tool absent?** Use its fallback (below). If nothing reasonable exists,
    **ask before installing** anything.
@@ -34,7 +35,11 @@ catalog below is the single source of truth for *how each tool is used*.
 
 ### Reading the probe
 
-- `PRESENT: …` — the tools you may use. Anything not listed is **absent**: don't call it.
+- `PRESENT: …` — tools invocable by **bare name** (on PATH). This is the zero-friction set.
+- `jdkbin: …` — *(shown only if non-empty)* Java tools that are **installed but not on
+  PATH**; they live in `$JAVA_HOME/bin`, so call them as `$JAVA_HOME/bin/<tool>` (e.g.
+  `$JAVA_HOME/bin/jdeps`). Anything on neither `PRESENT:` nor `jdkbin:` is **absent** —
+  don't call it.
 - `runtime: …` — versions of `java` / `cargo` / `node` / `py`.
 - `env: …` — OS, user, `JAVA_HOME`, and `net` (`up` / `down` / `unknown`). `net=down` means
   first builds that download dependencies (Maven Central, crates.io, npm) will fail — say so
@@ -46,6 +51,9 @@ Each entry: role — canonical command — caveat. Presence is decided by the pr
 here, so an entry may describe a tool that is absent in your environment.
 
 ### Java / Maven
+
+The JDK also ships tools that may **not be on PATH** here (e.g. `jdeps`, `jshell`,
+`jlink`). If the probe lists them under `jdkbin:`, call them as `$JAVA_HOME/bin/<tool>`.
 
 - **java / javac** — compile & run.
 - **mvn** — build; build-time diagnostic: `mvn -q compile` (exit code + errors = compiler
