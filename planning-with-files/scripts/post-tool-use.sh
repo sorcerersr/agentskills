@@ -20,6 +20,11 @@ if [ -f "${RESOLVER}" ]; then
     PLAN_DIR="$(sh "${RESOLVER}" 2>/dev/null)"
 fi
 
+# Legacy fallback: root task_plan.md (matches inject-plan.sh resolution order)
+if [ -z "${PLAN_DIR}" ] && [ -f task_plan.md ]; then
+    PLAN_DIR="."
+fi
+
 if [ -n "${PLAN_DIR}" ] && [ -f "${PLAN_DIR}/task_plan.md" ]; then
     # Only remind for Edit/Write tools (not Read, Bash, etc.)
     # Guard: skip reminder if the tool just edited progress.md or task_plan.md

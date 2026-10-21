@@ -96,7 +96,7 @@ if [ "$TAMPERED" = "1" ]; then
     echo '[planning-with-files] [PLAN TAMPERED — injection blocked]'
     echo "expected=$ATTEST"
     echo "actual=  $ACTUAL"
-    echo 'Run /plan-attest to re-approve current contents, or restore the file from git.'
+    echo 'Run sh scripts/attest-plan.sh to re-approve current contents, or restore the file from git.'
     exit 0
 fi
 
