@@ -6,7 +6,9 @@
 #
 # Context modes (--context=...):
 #   userprompt (default) — full plan head + progress summary. Once per turn.
-#   pretool              — short plan head only (head -30), no progress.
+#   pretool              — smart head: goal + one-line status rollup + full
+#                          current-phase section (head -30 fallback if the
+#                          plan has no parseable `### Phase N` headings).
 #   precompact           — compaction reminder only (no plan body).
 #
 # Always exits 0. Never errors out the agent loop.
@@ -79,15 +81,95 @@ if [ "$CONTEXT" = "precompact" ]; then
     exit 0
 fi
 
-# --- pretool: short head only, no progress ---
+# --- pretool: smart head (goal + status rollup + current phase) ---
 if [ "$CONTEXT" = "pretool" ]; then
     if [ "$TAMPERED" = "1" ]; then
         echo '[planning-with-files] [PLAN TAMPERED — injection blocked]'
-    else
+        exit 0
+    fi
+    if ! grep -Eq '^### Phase [0-9]+' "$PLAN_FILE" 2>/dev/null; then
+        # No parseable phases → legacy short head
         echo '===BEGIN PLAN DATA==='
         head -30 "$PLAN_FILE" 2>/dev/null
         echo '===END PLAN DATA==='
+        exit 0
     fi
+    echo '===BEGIN PLAN DATA==='
+    awk '
+        /^##[ \t]+Goal[ \t]*$/ { in_goal = 1; in_field = 0; in_phase = 0; next }
+        /^##[ \t]+Current[ \t]+Phase[ \t]*$/ { in_field = 1; in_goal = 0; in_phase = 0; next }
+        /^##[ \t]/ { in_goal = 0; in_field = 0; in_phase = 0; next }
+        /^###[ \t]+Phase[ \t]+[0-9]+/ {
+            in_phase = 1; in_goal = 0; in_field = 0
+            nph++
+            pnum[nph] = $3
+            sub(/:.*$/, "", pnum[nph])
+            ptitle[nph] = $0
+            sub(/^###[ \t]+Phase[ \t]+[0-9]+[ \t]*:*/, "", ptitle[nph])
+            sub(/^[ \t]+/, "", ptitle[nph])
+            pstat[nph] = ""
+            psec[nph] = ""
+            next
+        }
+        in_goal && NF { goal = goal $0 "\n" }
+        in_field && NF { field = $0 }
+        in_phase {
+            if ($0 ~ /\*\*Status:\*\*/) {
+                s = $0
+                sub(/^.*\*\*Status:\*\*[ \t]*/, "", s)
+                sub(/[ \t]+$/, "", s)
+                pstat[nph] = s
+            }
+            psec[nph] = psec[nph] $0 "\n"
+        }
+        END {
+            printf "## Goal\n%s\n", goal
+            rollup = ""
+            for (i = 1; i <= nph; i++) {
+                st = (pstat[i] != "" ? pstat[i] : "unknown")
+                rollup = rollup (i > 1 ? " | " : "") "Phase " pnum[i] ": " st
+            }
+            printf "## Status\n%s\n\n", rollup
+            # Current phase selection: field, cross-checked vs statuses
+            fieldnum = 0
+            if (match(field, /Phase[ \t]+[0-9]+/))
+                fieldnum = substr(field, RSTART + 6, RLENGTH - 6) + 0
+            for (i = 1; i <= nph; i++) idx[pnum[i]] = i
+            first_ip = 0; first_pd = 0
+            for (i = 1; i <= nph; i++) {
+                if (pstat[i] ~ /in_progress/ && first_ip == 0) first_ip = i
+                if (pstat[i] ~ /pending/ && first_pd == 0) first_pd = i
+            }
+            sel = 0; warn = ""
+            if (fieldnum in idx) {
+                fi = idx[fieldnum]
+                if (pstat[fi] ~ /in_progress/)
+                    sel = fi
+                else if (first_ip) {
+                    sel = first_ip
+                    warn = "WARNING: Current Phase field says " fieldnum ", but Phase " pnum[sel] " is in_progress — using " pnum[sel] ". Update the field."
+                } else if (pstat[fi] ~ /pending/) {
+                    sel = first_pd
+                    if (sel != fi)
+                        warn = "WARNING: Current Phase field says " fieldnum ", but first pending is Phase " pnum[sel] " — using " pnum[sel] ". Update the field."
+                } else if (first_pd) {
+                    sel = first_pd
+                    warn = "WARNING: Current Phase field says " fieldnum ", but Phase " pnum[fi] " is " pstat[fi] " — using Phase " pnum[sel] " (first pending). Update the field."
+                }
+            } else {
+                if (first_ip) {
+                    sel = first_ip
+                    warn = "WARNING: Current Phase field is missing or invalid — using Phase " pnum[sel] " (in_progress)."
+                } else if (first_pd) {
+                    sel = first_pd
+                    warn = "WARNING: Current Phase field is missing or invalid — using Phase " pnum[sel] " (first pending)."
+                }
+            }
+            if (warn != "") printf "%s\n\n", warn
+            if (sel > 0) printf "## Current Phase %s: %s\n%s", pnum[sel], ptitle[sel], psec[sel]
+        }
+    ' "$PLAN_FILE"
+    echo '===END PLAN DATA==='
     exit 0
 fi
 

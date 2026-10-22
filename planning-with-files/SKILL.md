@@ -35,8 +35,8 @@ Work like Manus: Use persistent markdown files as your "working memory on disk."
 
 The lifecycle hooks declared in this skill's frontmatter are live:
 
-- **Plan injection every turn:** `task_plan.md` content is injected automatically at the start of each turn and before each `Read`/`Write`/`Edit`/`Bash` tool call. Do not re-read `task_plan.md` manually just to refresh context — only read it when the PHASE GATE or an error requires the full content.
-- **Progress reminder:** after every `write`/`edit` tool call, a reminder to update `progress.md` is injected.
+- **Plan injection every turn:** `task_plan.md` content is injected automatically at the start of each turn (full plan) and before each `Read`/`Write`/`Edit`/`Bash` tool call (compact head: goal + phase status rollup + current phase section). Do not re-read `task_plan.md` manually just to refresh context — only read it when the PHASE GATE or an error requires the full content.
+- **Mechanical progress log:** after every `write`/`edit` tool call, a one-line mechanical entry (timestamp, tool, file, line count) is appended to the `## Hook Log` section of `progress.md` by the hook. You add the *descriptive* entry (what and why) in the session log; the hook maintains the mechanical floor. `progress.md` is append-only — never rewrite it wholesale.
 - **Completion report:** at turn end, phase-completion status is reported (advisory only).
 - **Matcher filtering:** the `matcher` fields in the frontmatter determine which tool calls fire the hooks; the scripts also self-filter on `TOOL_NAME` as a second defense layer.
 
@@ -86,7 +86,7 @@ Filesystem = Disk (persistent, unlimited)
 | -------------- | --------------------------- | ------------------- |
 | `task_plan.md` | Phases, progress, decisions | After each phase    |
 | `findings.md`  | Research, discoveries       | After ANY discovery |
-| `progress.md`  | Session log, test results   | Throughout session  |
+| `progress.md`  | Session log, test results, hook log | Throughout session  |
 
 ## Critical Rules
 
@@ -111,6 +111,10 @@ After completing any phase:
 - Mark phase status: `in_progress` → `complete`
 - Log any errors encountered
 - Note files created/modified
+
+`progress.md` is append-only: never rewrite it wholesale. The `## Hook Log`
+section at the bottom is hook-maintained (one mechanical line per file change)
+and must stay last; you add descriptive entries in the phase sections above it.
 
 ### 5. PHASE GATE
 
@@ -235,9 +239,9 @@ Helper scripts for automation:
 
 **Hook scripts (used internally by the hooks system):**
 
-- `scripts/inject-plan.sh` — Inject plan context into the model turn. Supports `--context=userprompt` (full plan head + progress), `--context=pretool` (short plan head), and `--context=precompact` (compaction reminder). Used by UserPromptSubmit, PreToolUse, and PreCompact hooks.
+- `scripts/inject-plan.sh` — Inject plan context into the model turn. Supports `--context=userprompt` (full plan + progress tail), `--context=pretool` (smart head: goal + one-line status rollup + full current-phase section; `head -30` fallback if the plan has no parseable phases), and `--context=precompact` (compaction reminder). Used by UserPromptSubmit, PreToolUse, and PreCompact hooks.
 - `scripts/gate-stop.sh` — Stop hook dispatcher. Reports task completion status. Always advisory (no hard block on Respondami). Calls `check-complete.sh`.
-- `scripts/post-tool-use.sh` — PostToolUse hook. Reminds to update progress.md after Write/Edit operations.
+- `scripts/post-tool-use.sh` — PostToolUse hook. After Write/Edit, appends a mechanical one-line entry to the `## Hook Log` section of progress.md, then reminds to add a descriptive entry. Skips planning-file edits (loop guard).
 
 ### Parallel task workflow
 

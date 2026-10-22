@@ -112,3 +112,15 @@
   - Include timestamps for errors to track when issues occurred
 -->
 *Update after completing each phase or encountering errors*
+
+## Hook Log
+<!--
+  WHAT: Mechanical, hook-maintained log of every file the model writes/edits.
+  WHY: Durability floor — if a session is interrupted (compaction, crash),
+        the file-level record of what changed is already on disk, independent
+        of the model's descriptive entries above.
+  WHEN: Maintained automatically by the post-tool-use hook. Do not edit by
+        hand. The model adds descriptive entries in the phase sections above;
+        this section stays last and is append-only.
+-->
+
