@@ -3,14 +3,15 @@
 > **Work like Manus** - Use persistent markdown files as your "working memory on disk."
 
 A skill for the Respondami agent. It enforces Manus-style file-based planning:
-`task_plan.md`, `findings.md`, and `progress.md` are created up front in the
-project directory and updated after every phase, so a session can be quit and
-resumed with minimal friction.
+`task_plan.md`, `findings.md`, and `progress.md` are created up front under
+`.planning/<date>-<slug>/` in the project and updated after every phase, so a
+session can be quit and resumed with minimal friction.
 
 Adapted from [planning-with-files](https://github.com/OthmanAdi/planning-with-files/)
 for Respondami: lifecycle hooks are declared in the skill's frontmatter
-(matcher-filtered), and the prompt has a hard template-reading step and an
-explicit phase gate.
+(matcher-filtered), and the prompt has an explicit phase gate. Planning files
+are always created by `init-session.sh` under `.planning/` — never in the
+project root.
 
 ## Installation
 
@@ -27,6 +28,12 @@ Ask for the skill on any multi-step task:
 ```text
 Use the planning-with-files skill to help me with this task.
 ```
+
+The skill starts a plan with `scripts/init-session.sh "Task Name"`, which
+creates `.planning/YYYY-MM-DD-<slug>/` containing the three planning files and
+pins `.planning/.active_plan` so the hooks find it. Every plan is isolated in
+its own directory, so multiple tasks in the same repo coexist; switch with
+`set-active-plan.sh` or pin a terminal with `export PLAN_ID=<id>`.
 
 ## Lifecycle hooks
 
@@ -54,7 +61,7 @@ a SHA-256 hash. If the file later diverges, injection is blocked with:
 
 ## Scripts
 
-- `init-session.sh` — create planning files; with a name argument, an isolated plan under `.planning/YYYY-MM-DD-<slug>/` for parallel tasks
+- `init-session.sh` — create planning files under `.planning/YYYY-MM-DD-<slug>/`; without a name, an `untitled-<uuid>` plan. Never writes to the project root
 - `set-active-plan.sh` — switch the active plan pointer
 - `resolve-plan-dir.sh` — resolve the active plan directory (used by hooks)
 - `check-complete.sh` — verify all phases are complete
@@ -62,11 +69,18 @@ a SHA-256 hash. If the file later diverges, injection is blocked with:
 
 ## File structure
 
-The workflow centers on three files in your project:
+The workflow centers on three files in the active plan directory:
 
 ```text
 your-project/
-├── task_plan.md
-├── findings.md
-└── progress.md
+└── .planning/
+    ├── .active_plan
+    └── 2026-01-10-my-task/
+        ├── task_plan.md
+        ├── findings.md
+        └── progress.md
 ```
+
+Legacy projects may have the three files in the project root instead; the
+hooks still resolve and support that layout, but new plans always go under
+`.planning/`.

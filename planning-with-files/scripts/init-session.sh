@@ -2,22 +2,20 @@
 # Initialize planning files for a new session.
 #
 # Usage:
-#   ./init-session.sh                              # legacy: root-level task_plan.md, findings.md, progress.md
-#   ./init-session.sh [--template TYPE]            # legacy with template choice
-#   ./init-session.sh "Backend Refactor"           # slug mode: .planning/<date>-backend-refactor/
-#   ./init-session.sh --plan-dir                   # slug mode with auto-generated untitled-<short> name
-#   ./init-session.sh --plan-dir "Quick Spike"     # slug mode, explicit slug
+#   ./init-session.sh                              # .planning/<date>-untitled-<short>/ (auto name)
+#   ./init-session.sh [--template TYPE]            # same, with template choice
+#   ./init-session.sh "Backend Refactor"           # .planning/<date>-backend-refactor/
+#   ./init-session.sh --plan-dir                   # no-op alias for the no-arg form
+#   ./init-session.sh --plan-dir "Quick Spike"     # same as "Quick Spike"
 #
-# Legacy mode (zero positional args, no --plan-dir) preserves v1.x behavior so
-# upgrades stay non-breaking. Slug mode addresses parallel multi-task isolation
-# (issue #148) by writing each plan under .planning/<date>-<slug>/ and pinning
-# .planning/.active_plan so resolve-plan-dir.sh can find it.
+# Planning files always go under .planning/<date>-<slug>/ and .planning/.active_plan
+# is pinned so resolve-plan-dir.sh can find them. This script never writes to the
+# project root; root-level plans from v1.x are read-only legacy (resolver fallback).
 
 set -e
 
 TEMPLATE="default"
 PROJECT_NAME=""
-USE_PLAN_DIR=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -26,7 +24,7 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         --plan-dir)
-            USE_PLAN_DIR=1
+            # No-op alias kept for backward compatibility
             shift
             ;;
         *)
@@ -49,12 +47,6 @@ TEMPLATE_DIR="$SKILL_ROOT/templates"
 if [ "$TEMPLATE" != "default" ] && [ "$TEMPLATE" != "analytics" ]; then
     echo "Unknown template: $TEMPLATE (available: default, analytics). Using default."
     TEMPLATE="default"
-fi
-
-# Slug mode triggers when a project name was given OR --plan-dir was passed.
-SLUG_MODE=0
-if [ -n "$PROJECT_NAME" ] || [ "$USE_PLAN_DIR" -eq 1 ]; then
-    SLUG_MODE=1
 fi
 
 slugify() {
@@ -250,35 +242,26 @@ create_files_in() {
     fi
 }
 
-if [ "$SLUG_MODE" -eq 1 ]; then
-    SLUG="$(slugify "$PROJECT_NAME")"
-    if [ -z "$SLUG" ]; then
-        SLUG="untitled-$(short_uuid)"
-    fi
-    BASE_ID="${DATE}-${SLUG}"
-    PLAN_ID="$BASE_ID"
-    PLAN_ROOT="${PWD}/.planning"
-    counter=2
-    while [ -d "${PLAN_ROOT}/${PLAN_ID}" ]; do
-        PLAN_ID="${BASE_ID}-${counter}"
-        counter=$((counter + 1))
-    done
-    PLAN_DIR="${PLAN_ROOT}/${PLAN_ID}"
-    mkdir -p "$PLAN_DIR"
-
-    echo "Initializing planning files for: ${PROJECT_NAME:-untitled} (template: $TEMPLATE)"
-    echo "PLAN_ID=$PLAN_ID"
-    create_files_in "$PLAN_DIR"
-    printf "%s\n" "$PLAN_ID" > "${PLAN_ROOT}/.active_plan"
-    echo ""
-    echo "Active plan recorded: ${PLAN_ROOT}/.active_plan"
-    echo "Pin this terminal to the plan for parallel sessions:"
-    echo "  export PLAN_ID=$PLAN_ID"
-else
-    PROJECT_NAME="${PROJECT_NAME:-project}"
-    echo "Initializing planning files for: $PROJECT_NAME (template: $TEMPLATE)"
-    create_files_in "$(pwd)"
-    echo ""
-    echo "Planning files initialized!"
-    echo "Files: task_plan.md, findings.md, progress.md"
+SLUG="$(slugify "$PROJECT_NAME")"
+if [ -z "$SLUG" ]; then
+    SLUG="untitled-$(short_uuid)"
 fi
+BASE_ID="${DATE}-${SLUG}"
+PLAN_ID="$BASE_ID"
+PLAN_ROOT="${PWD}/.planning"
+counter=2
+while [ -d "${PLAN_ROOT}/${PLAN_ID}" ]; do
+    PLAN_ID="${BASE_ID}-${counter}"
+    counter=$((counter + 1))
+done
+PLAN_DIR="${PLAN_ROOT}/${PLAN_ID}"
+mkdir -p "$PLAN_DIR"
+
+echo "Initializing planning files for: ${PROJECT_NAME:-untitled} (template: $TEMPLATE)"
+echo "PLAN_ID=$PLAN_ID"
+create_files_in "$PLAN_DIR"
+printf "%s\n" "$PLAN_ID" > "${PLAN_ROOT}/.active_plan"
+echo ""
+echo "Active plan recorded: ${PLAN_ROOT}/.active_plan"
+echo "Pin this terminal to the plan for parallel sessions:"
+echo "  export PLAN_ID=$PLAN_ID"

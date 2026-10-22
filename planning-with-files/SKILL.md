@@ -42,34 +42,38 @@ The lifecycle hooks declared in this skill's frontmatter are live:
 
 ## FIRST: Restore Context
 
-**Before doing anything else**, check if planning files exist and read them:
+**Before doing anything else**, check if a plan exists and read it:
 
-1. If `task_plan.md` exists, read `task_plan.md`, `progress.md`, and `findings.md` immediately.
+1. Run `sh scripts/resolve-plan-dir.sh`. If it prints a directory, read `task_plan.md`, `progress.md`, and `findings.md` from that directory immediately. If it prints nothing, no plan exists — start one (Quick Start).
 2. If resuming after a gap, run `git diff --stat` to see actual code changes since the last session, and update the planning files based on the diff.
 3. Then proceed with the task.
+
+Planning files live in `.planning/<date>-<slug>/` (or a legacy project root). Never create them by hand — `init-session.sh` owns file creation.
 
 ## Important: Where Files Go
 
 - **Templates** are in `templates/` inside this skill
-- **Your planning files** go in **your project directory**
+- **Your planning files** go in **`.planning/<date>-<slug>/` in your project**
 
-| Location               | What Goes There                              |
-| ---------------------- | -------------------------------------------- |
-| Skill directory        | Templates, scripts, reference docs           |
-| Your project directory | `task_plan.md`, `findings.md`, `progress.md` |
+| Location                          | What Goes There                              |
+| --------------------------------- | -------------------------------------------- |
+| Skill directory                   | Templates, scripts, reference docs           |
+| `.planning/<date>-<slug>/` in your project | `task_plan.md`, `findings.md`, `progress.md` |
+
+> Planning files go in `.planning/` inside your project, never in the project root and never in the skill folder.
 
 ## Quick Start
 
 Before ANY complex task:
 
-1. **Read the templates first** — Before creating any planning file, `read` `templates/task_plan.md`, `templates/findings.md`, and `templates/progress.md` from this skill's directory. Create the planning files following their exact structure. Do not invent your own structure.
-2. **Create `task_plan.md`** — from [templates/task_plan.md](templates/task_plan.md)
-3. **Create `findings.md`** — from [templates/findings.md](templates/findings.md)
-4. **Create `progress.md`** — from [templates/progress.md](templates/progress.md)
-5. **Re-read plan before decisions** — Refreshes goals in attention window
-6. **Update after each phase** — Mark complete, log errors
+1. **Initialize the plan** — Run `sh scripts/init-session.sh "Task Name"`. It creates `.planning/YYYY-MM-DD-<slug>/` with `task_plan.md`, `findings.md`, and `progress.md` (exact template structure) and prints the `PLAN_ID`.
+2. **Read the three files** from the printed plan directory.
+3. **Re-read plan before decisions** — Refreshes goals in attention window
+4. **Update after each phase** — Mark complete, log errors
 
-> **Note:** Planning files go in your project root, not the skill installation folder.
+If a plan directory exists but a file is missing, read the matching `templates/*.md` from this skill and recreate it with the exact structure.
+
+> **Note:** Planning files go in `.planning/` inside your project, not in the project root and not in the skill installation folder.
 
 ## The Core Pattern
 
@@ -221,7 +225,7 @@ If you can answer these, your context management is solid:
 
 ## Templates
 
-Copy these templates to start:
+`init-session.sh` generates the planning files from these templates — you normally never touch them directly:
 
 - [templates/task_plan.md](templates/task_plan.md) — Phase tracking
 - [templates/findings.md](templates/findings.md) — Research storage
@@ -231,9 +235,9 @@ Copy these templates to start:
 
 Helper scripts for automation:
 
-- `scripts/init-session.sh` — Initialize planning files. With a name arg, creates an isolated plan under `.planning/YYYY-MM-DD-<slug>/` for parallel task workflows. Without args, writes `task_plan.md` at project root (legacy mode, backward-compatible).
+- `scripts/init-session.sh` — Initialize planning files. With a name arg, creates an isolated plan under `.planning/YYYY-MM-DD-<slug>/`. Without args, creates `.planning/YYYY-MM-DD-untitled-<uuid>/`. Never writes to the project root. Pins `.planning/.active_plan` so hooks find the new plan.
 - `scripts/set-active-plan.sh` — Switch the active plan pointer (`.planning/.active_plan`). Run with a plan ID to switch; run without args to show which plan is current.
-- `scripts/resolve-plan-dir.sh` — Resolve the active plan directory. Checks `$PLAN_ID` env var first, then `.planning/.active_plan`, then newest plan dir by mtime, then falls back to project root (legacy). Used internally by hooks.
+- `scripts/resolve-plan-dir.sh` — Resolve the active plan directory. Checks `$PLAN_ID` env var first, then `.planning/.active_plan`, then newest plan dir by mtime; prints nothing if no `.planning/` plan exists (hooks then fall back to a legacy root `task_plan.md`). Used internally by hooks and by the Restore Context step.
 - `scripts/check-complete.sh` — Verify all phases in the active plan are complete.
 - `scripts/attest-plan.sh` — Optional manual step: lock the current `task_plan.md` content with a SHA-256 attestation (`sh scripts/attest-plan.sh`). Hooks then refuse to inject plan content if the file diverges from the attested hash. Use `--show` to print the stored hash, `--clear` to remove the attestation.
 
@@ -243,9 +247,9 @@ Helper scripts for automation:
 - `scripts/gate-stop.sh` — Stop hook dispatcher. Reports task completion status. Always advisory (no hard block on Respondami). Calls `check-complete.sh`.
 - `scripts/post-tool-use.sh` — PostToolUse hook. After Write/Edit, appends a mechanical one-line entry to the `## Hook Log` section of progress.md, then reminds to add a descriptive entry. Skips planning-file edits (loop guard).
 
-### Parallel task workflow
+### Working on multiple tasks
 
-When working on multiple tasks in the same repo simultaneously:
+Every plan is isolated under its own `.planning/<date>-<slug>/` directory, so multiple tasks in the same repo coexist:
 
 ```bash
 # Start task A
@@ -263,7 +267,7 @@ When working on multiple tasks in the same repo simultaneously:
 export PLAN_ID=2026-01-10-backend-refactor
 ```
 
-Each session reads from its own isolated plan directory. Hooks resolve the correct plan automatically.
+Each session reads from its own plan directory. Hooks resolve the correct plan automatically.
 
 ## Advanced Topics
 

@@ -14,6 +14,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd 2>/dev/null)" || SCRIPT_DIR="."
 INJECT="${SCRIPT_DIR}/inject-plan.sh"
 POST="${SCRIPT_DIR}/post-tool-use.sh"
 ATTEST="${SCRIPT_DIR}/attest-plan.sh"
+INIT="${SCRIPT_DIR}/init-session.sh"
+RESOLVER="${SCRIPT_DIR}/resolve-plan-dir.sh"
 
 WORK="$(mktemp -d 2>/dev/null)" || { echo "FATAL: cannot create scratch dir" >&2; exit 1; }
 trap 'rm -rf "$WORK"' EXIT
@@ -236,6 +238,45 @@ printf 'x\n' > a.rs
 TOOL_NAME=write TOOL_INPUT='{"path":"a.rs"}' sh "$POST" >/dev/null
 grep -q '^## Hook Log' progress.md && ok "10a section created" || bad "10a section created" "no ## Hook Log heading"
 grep -qE '^- \[[0-9]{2}:[0-9]{2}:[0-9]{2}\] write: a.rs \(1 lines\)$' progress.md && ok "10b line under section" || bad "10b line under section" "no hook log line"
+cd "$WORK" || exit 1
+
+# ---------------------------------------------------------------------------
+# Test 11: .planning/-only flow (init-session.sh owns creation, design §1/§3)
+# ---------------------------------------------------------------------------
+mkdir -p t11 && cd t11 || exit 1
+OUT=$(sh "$INIT" "Acme CLI")
+PLAN_ID_LINE=$(printf '%s\n' "$OUT" | grep '^PLAN_ID=' | cut -d= -f2)
+[ -n "$PLAN_ID_LINE" ] && ok "11a init: PLAN_ID printed" || bad "11a init: PLAN_ID printed" "no PLAN_ID in output"
+PLAN_DIR_T11=".planning/${PLAN_ID_LINE}"
+[ -f "${PLAN_DIR_T11}/task_plan.md" ] && [ -f "${PLAN_DIR_T11}/findings.md" ] && [ -f "${PLAN_DIR_T11}/progress.md" ] \
+    && ok "11b init: 3 files in plan dir" || bad "11b init: 3 files in plan dir" "missing files in ${PLAN_DIR_T11}"
+[ ! -f task_plan.md ] && [ ! -f findings.md ] && [ ! -f progress.md ] \
+    && ok "11c init: root stays clean" || bad "11c init: root stays clean" "planning file leaked to root"
+[ -f .planning/.active_plan ] && [ "$(cat .planning/.active_plan)" = "$PLAN_ID_LINE" ] \
+    && ok "11d init: .active_plan pinned" || bad "11d init: .active_plan pinned" "active plan mismatch"
+RESOLVED=$(sh "$RESOLVER")
+[ "$RESOLVED" = "${PWD}/${PLAN_DIR_T11}" ] && ok "11e resolver: prints plan dir" || bad "11e resolver: prints plan dir" "got: $RESOLVED"
+OUT=$(sh "$INJECT" --context=pretool)
+assert_contains   "11f pretool: goal from template"   "$OUT" "[One sentence describing the end state]"
+assert_contains   "11g pretool: current phase section" "$OUT" "## Current Phase 1: Requirements & Discovery"
+printf 'fn main() {}\n' > src_file.rs
+OUT=$(TOOL_NAME=write TOOL_INPUT='{"path":"src_file.rs"}' sh "$POST")
+assert_contains "11h post: reminder printed" "$OUT" "mechanical entry"
+grep -qE '^- \[[0-9]{2}:[0-9]{2}:[0-9]{2}\] write: src_file.rs \(1 lines\)$' "${PLAN_DIR_T11}/progress.md" \
+    && ok "11i post: line in plan progress.md" || bad "11i post: line in plan progress.md" "no hook log line in plan dir"
+[ ! -f progress.md ] && ok "11j post: no root progress.md" || bad "11j post: no root progress.md" "root progress.md created"
+cd "$WORK" || exit 1
+
+# 11e (cont.): no-arg init → untitled-* dir, root clean
+mkdir -p t11b && cd t11b || exit 1
+OUT=$(sh "$INIT")
+PLAN_ID_LINE=$(printf '%s\n' "$OUT" | grep '^PLAN_ID=' | cut -d= -f2)
+case "$PLAN_ID_LINE" in
+    *untitled-*) ok "11k no-arg: untitled slug" ;;
+    *) bad "11k no-arg: untitled slug" "got: $PLAN_ID_LINE" ;;
+esac
+[ -d ".planning/${PLAN_ID_LINE}" ] && [ ! -f task_plan.md ] \
+    && ok "11l no-arg: plan dir created, root clean" || bad "11l no-arg: plan dir created, root clean" "layout wrong"
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
