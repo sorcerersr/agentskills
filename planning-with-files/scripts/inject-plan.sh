@@ -9,7 +9,9 @@
 #   pretool              — smart head: goal + one-line status rollup + full
 #                          current-phase section (head -30 fallback if the
 #                          plan has no parseable `### Phase N` headings).
-#   precompact           — compaction reminder only (no plan body).
+#   precompact           — full plan body (Respondami appends hook stdout to
+#                          the compaction summary, so the plan survives
+#                          compaction verbatim).
 #
 # Always exits 0. Never errors out the agent loop.
 
@@ -72,12 +74,21 @@ if [ -n "$ATTEST" ]; then
     [ "$ACTUAL" != "$ATTEST" ] && TAMPERED=1
 fi
 
-# --- precompact: compaction reminder only ---
+# --- precompact: full plan body (appended to the compaction summary) ---
 if [ "$CONTEXT" = "precompact" ]; then
+    if [ "$TAMPERED" = "1" ]; then
+        echo '[planning-with-files] [PLAN TAMPERED — injection blocked]'
+        echo "expected=$ATTEST"
+        echo "actual=  $ACTUAL"
+        echo 'Run sh scripts/attest-plan.sh to re-approve current contents, or restore the file from git.'
+        exit 0
+    fi
     echo '[planning-with-files] PreCompact: context compaction is about to occur.'
-    echo 'Before compaction completes: ensure progress.md captures recent actions and task_plan.md status reflects current phase.'
-    echo 'task_plan.md, findings.md, progress.md remain on disk and will be re-read after compaction.'
+    echo 'Plan files remain on disk and are the source of truth; re-read them if context is lost.'
     [ -n "$ATTEST" ] && echo "Plan-SHA256 at compaction: $ATTEST"
+    echo '===BEGIN PLAN DATA=== '
+    cat "$PLAN_FILE"
+    echo '===END PLAN DATA=== '
     exit 0
 fi
 

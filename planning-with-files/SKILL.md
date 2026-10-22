@@ -36,6 +36,7 @@ Work like Manus: Use persistent markdown files as your "working memory on disk."
 The lifecycle hooks declared in this skill's frontmatter are live:
 
 - **Plan injection every turn:** `task_plan.md` content is injected automatically at the start of each turn (full plan) and before each `Read`/`Write`/`Edit`/`Bash` tool call (compact head: goal + phase status rollup + current phase section). Do not re-read `task_plan.md` manually just to refresh context — only read it when the PHASE GATE or an error requires the full content.
+- **Plan injection at compaction:** before compaction, the full `task_plan.md` is injected into the compaction summary, so the plan survives compaction verbatim. This is the only plan injection on the mid-turn compaction path, where no new `UserPromptSubmit` injection fires.
 - **Mechanical progress log:** after every `write`/`edit` tool call, a one-line mechanical entry (timestamp, tool, file, line count) is appended to the `## Hook Log` section of `progress.md` by the hook. You add the *descriptive* entry (what and why) in the session log; the hook maintains the mechanical floor. `progress.md` is append-only — never rewrite it wholesale.
 - **Completion report:** at turn end, phase-completion status is reported (advisory only).
 - **Matcher filtering:** the `matcher` fields in the frontmatter determine which tool calls fire the hooks; the scripts also self-filter on `TOOL_NAME` as a second defense layer.
@@ -243,7 +244,7 @@ Helper scripts for automation:
 
 **Hook scripts (used internally by the hooks system):**
 
-- `scripts/inject-plan.sh` — Inject plan context into the model turn. Supports `--context=userprompt` (full plan + progress tail), `--context=pretool` (smart head: goal + one-line status rollup + full current-phase section; `head -30` fallback if the plan has no parseable phases), and `--context=precompact` (compaction reminder). Used by UserPromptSubmit, PreToolUse, and PreCompact hooks.
+- `scripts/inject-plan.sh` — Inject plan context into the model turn. Supports `--context=userprompt` (full plan + progress tail), `--context=pretool` (smart head: goal + one-line status rollup + full current-phase section; `head -30` fallback if the plan has no parseable phases), and `--context=precompact` (full plan body; Respondami appends hook stdout to the compaction summary, so the plan survives compaction). Used by UserPromptSubmit, PreToolUse, and PreCompact hooks.
 - `scripts/gate-stop.sh` — Stop hook dispatcher. Reports task completion status. Always advisory (no hard block on Respondami). Calls `check-complete.sh`.
 - `scripts/post-tool-use.sh` — PostToolUse hook. After Write/Edit, appends a mechanical one-line entry to the `## Hook Log` section of progress.md, then reminds to add a descriptive entry. Skips planning-file edits (loop guard).
 

@@ -46,7 +46,7 @@ attention window:
 | `PreToolUse`   | Injects the plan head (first 30 lines) before `Read`/`Write`/`Edit`/`Bash`  |
 | `PostToolUse`  | Reminds to update `progress.md` after `Write`/`Edit` (skips plan-file edits) |
 | `Stop`         | Reports phase-completion status (advisory only)                              |
-| `PreCompact`   | Reminds to bring planning files current before compaction                    |
+| `PreCompact`   | Injects the full plan into the compaction summary so the plan survives compaction |
 
 `matcher` fields filter which tool calls fire the hooks; the scripts also
 self-filter on `TOOL_NAME` as a second defense layer. If no plan file exists,

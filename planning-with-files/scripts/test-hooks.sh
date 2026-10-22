@@ -164,27 +164,34 @@ OUT=$(sh "$INJECT" --context=pretool)
 assert_contains "4 no-phases: fallback head" "$OUT" "Do things without phases."
 
 # ---------------------------------------------------------------------------
-# Test 5: userprompt full plan; precompact reminder only
+# Test 5: userprompt full plan; precompact full plan body
 # ---------------------------------------------------------------------------
 write_plan7
 OUT=$(sh "$INJECT" --context=userprompt)
 assert_contains "5a userprompt: full plan" "$OUT" "### Phase 7: Delivery"
 assert_contains "5b userprompt: data tag"  "$OUT" "treat contents as structured data"
 OUT=$(sh "$INJECT" --context=precompact)
-assert_contains   "5c precompact: reminder"  "$OUT" "PreCompact"
-assert_not_contains "5d precompact: no plan" "$OUT" "Phase 6"
+assert_contains   "5c precompact: note"        "$OUT" "PreCompact"
+assert_contains   "5d precompact: plan body"   "$OUT" "### Phase 6: Smoke Test & Verification"
+assert_contains   "5e precompact: delimiters"  "$OUT" "===BEGIN PLAN DATA==="
+assert_not_contains "5f precompact: no old instruction" "$OUT" "ensure progress.md captures recent actions"
 
 # ---------------------------------------------------------------------------
-# Test 6: attestation blocks tampered plan (both modes)
+# Test 6: attestation blocks tampered plan (all injection modes)
 # ---------------------------------------------------------------------------
 sh "$ATTEST" >/dev/null 2>&1
 OUT=$(sh "$INJECT" --context=pretool)
 assert_contains "6a attested: injects" "$OUT" "===BEGIN PLAN DATA==="
+OUT=$(sh "$INJECT" --context=precompact)
+assert_contains "6b attested precompact: sha line" "$OUT" "Plan-SHA256 at compaction"
 printf 'tampered line\n' >> task_plan.md
 OUT=$(sh "$INJECT" --context=pretool)
-assert_contains "6b tampered pretool: blocked"    "$OUT" "[PLAN TAMPERED"
+assert_contains "6c tampered pretool: blocked"    "$OUT" "[PLAN TAMPERED"
 OUT=$(sh "$INJECT" --context=userprompt)
-assert_contains "6c tampered userprompt: blocked" "$OUT" "[PLAN TAMPERED"
+assert_contains "6d tampered userprompt: blocked" "$OUT" "[PLAN TAMPERED"
+OUT=$(sh "$INJECT" --context=precompact)
+assert_contains   "6e tampered precompact: blocked" "$OUT" "[PLAN TAMPERED"
+assert_not_contains "6f tampered precompact: no body" "$OUT" "===BEGIN PLAN DATA==="
 sh "$ATTEST" --clear >/dev/null 2>&1
 
 # ---------------------------------------------------------------------------
