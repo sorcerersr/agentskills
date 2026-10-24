@@ -1,21 +1,23 @@
 #!/bin/bash
-# planning-with-files: PostToolUse hook — mechanical hook log + reminder.
+# planning-with-files: PostToolUse hook — mechanical hook log.
 #
 # After every model write/edit (except on the planning files themselves),
 # appends a one-line mechanical entry to the `## Hook Log` section of
-# progress.md, then prints a reminder to add a descriptive entry.
+# progress.md.
 #
 # The mechanical line is the durability floor: if a session is interrupted
 # (compaction, crash), the file-level record of what changed is already on
-# disk, independent of the model's cooperation.
+# disk, independent of the model's cooperation. The model adds its own
+# descriptive entry (what and why) to the session log; this hook only
+# maintains the mechanical floor.
 #
 # Guard: If the tool that just ran was editing progress.md or task_plan.md,
-# skip both the append and the reminder to avoid an endless loop.
+# skip the append to avoid an endless loop.
 #
 # The hook's own append is not a model tool call, so it cannot retrigger
 # this hook (no recursion by construction).
 #
-# Always exits 0. Never blocks the tool call.
+# Side effect only: no model-bound output. Always exits 0. Never blocks.
 
 set -u
 
@@ -69,8 +71,6 @@ if [ -n "${PLAN_DIR}" ] && [ -f "${PLAN_DIR}/task_plan.md" ]; then
                         printf '\n## Hook Log\n%s\n' "$ENTRY" >> "$PROGRESS_FILE" 2>/dev/null
                     fi
                 fi
-
-                echo '[planning-with-files] A mechanical entry for this change was just appended to the ## Hook Log in progress.md. Now add your descriptive entry (what and why) to the session log. If a phase is complete, also update task_plan.md status.'
                 ;;
         esac
     fi
