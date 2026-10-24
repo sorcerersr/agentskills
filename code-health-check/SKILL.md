@@ -2,6 +2,11 @@
 name: code-health-check
 description: Systematic three-pass code review for any Rust project — correctness, quality, and dependency audit. Outputs findings to docs/reviews/YYYY-MM-DD-code-review.md.
 disable-model-invocation: true
+hooks:
+  PreCompact:
+    - hooks:
+        - type: command
+          command: sh ${SKILL_DIR}/scripts/precompact-emit.sh docs/reviews/.active_report
 ---
 
 # Code Health Check
@@ -19,9 +24,11 @@ Before any review, establish context. Perform 3-5 quick actions:
 
 This produces a mental model of what the project does and what patterns may be intentional. Do not write this to the report — it is working context carried into subsequent passes.
 
+After Pass 0, create `docs/reviews/YYYY-MM-DD-code-review.md` with the header (scope, focus, methodology) and write its relative path to `docs/reviews/.active_report`. Fill in the exact scope numbers (file count, LOC) from file discovery.
+
 ## Pass Strategy
 
-Run all three passes sequentially. Each pass is exhaustive — every file in its scope is read and evaluated against every rule.
+Run all three passes sequentially. Each pass is exhaustive — every file in its scope is read and evaluated against every rule. As each finding is generated, append it to the report immediately, in the finding format, under the appropriate severity group (Pass 1 yields Critical/High, Pass 2 yields Medium/Low).
 
 ### File Discovery & Review Order
 
@@ -107,9 +114,16 @@ Prefix: `C-` (Critical), `H-` (High), `M-` (Medium), `L-` (Low). Number sequenti
 
 ## Deliverable
 
-Write the findings report to `docs/reviews/YYYY-MM-DD-code-review.md` with:
+The report is built incrementally: the header is written at creation (after Pass 0), findings are appended as they are generated, and the report is finalized on completion. The final report in `docs/reviews/YYYY-MM-DD-code-review.md` contains:
 
 1. Header: scope (file count, LOC, crate count), focus, methodology
-2. Summary table: severity counts
-3. Findings grouped by severity (Critical → Low), each in the finding format above
+2. Findings grouped by severity (Critical → Low), each in the finding format above
+3. Summary table: severity counts
 4. Dependency audit summary table (dep name, status, notes)
+
+On completion, append the summary table and dependency audit, then clear `docs/reviews/.active_report`.
+
+## Respondami notes
+
+- The `PreCompact` hook re-emits the in-progress report (marker-wrapped) into the compaction summary, so a long review that triggers compaction resumes with the full findings context instead of re-reviewing covered files.
+- `docs/reviews/.active_report` pins the active report's relative path; the hook no-ops when the state file is missing (e.g., after completion) or when the path doesn't resolve.

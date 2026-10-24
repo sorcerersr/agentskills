@@ -1,6 +1,11 @@
 ---
 name: refine
 description: "Use this skill before any creative work. Activate it with `activate_skill` first, then follow its instructions to explore user intent, requirements and design before implementation."
+hooks:
+  PreCompact:
+    - hooks:
+        - type: command
+          command: sh ${SKILL_DIR}/scripts/precompact-emit.sh docs/plans/.active_draft
 ---
 
 # Brainstorming and refining Ideas Into Designs
@@ -41,6 +46,11 @@ If a question can be answered from the resources available to you, answer it tha
 
   Repeat until the user approves.
 
+- Persist each approved section to a draft file as it is approved:
+  1. After the **first** approved section, create `docs/plans/YYYY-MM-DD-<topic>-design.draft.md`, write the section into it, and write the draft's relative path to `docs/plans/.active_draft`.
+  2. After each **subsequent** approved section, append it to the draft.
+  3. If an approved section is later revised and re-approved, replace that section's content in the draft (no duplicates).
+
 - Cover: architecture, components, data flow, error handling, testing
 - Be ready to go back and clarify if something doesn't make sense
 
@@ -48,7 +58,7 @@ If a question can be answered from the resources available to you, answer it tha
 
 **Documentation:**
 
-- Write the validated design to `docs/plans/YYYY-MM-DD-<topic>-design.md`
+- On completion (all sections approved), rename the draft to `docs/plans/YYYY-MM-DD-<topic>-design.md` and clear `docs/plans/.active_draft`.
 - Present the user a summary of the design.
 
 **Implementation Boundary (CRITICAL):**
@@ -58,6 +68,12 @@ If a question can be answered from the resources available to you, answer it tha
 - Do not start coding, creating files, or making any changes based on the design alone.
 - When the user explicitly asks to implement, activate the `planning-with-files` skill and use the design document as the basis for the implementation plan.
 - Explicitly state: "Design is complete and ready for futher review.
+
+## Respondami notes
+
+- The `PreCompact` hook re-emits the in-progress draft (marker-wrapped) into the compaction summary, so a long brainstorming session that triggers compaction resumes with the full design context instead of re-brainstorming.
+- The draft is also visible to the user as it is built.
+- `docs/plans/.active_draft` pins the active draft's relative path; the hook no-ops when the state file is missing (e.g., after completion) or when the path doesn't resolve.
 
 ## Key Principles
 

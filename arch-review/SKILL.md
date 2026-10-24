@@ -1,16 +1,23 @@
 ---
 name: arch-review
-description: In-depth architecture review for any Rust codebase — modularization, separation of concerns, call hierarchy, memory, performance, inconsistencies. Outputs findings to docs/reviews/arch-YYYY-MM-DD.md.
+description: In-depth architecture review for any Rust codebase — modularization, separation of concerns, call hierarchy, memory, performance, inconsistencies. Outputs findings to docs/reviews/YYYY-MM-DD-arch-review.md.
 disable-model-invocation: true
+hooks:
+  PreCompact:
+    - hooks:
+        - type: command
+          command: sh ${SKILL_DIR}/scripts/precompact-emit.sh docs/reviews/.active_report
 ---
 
 # Architecture Review
 
-A systematic architecture review for any Rust codebase. Eight passes in dependency order, each producing structured observations. Output: a review report in `docs/reviews/arch-YYYY-MM-DD.md`.
+A systematic architecture review for any Rust codebase. Eight passes in dependency order, each producing structured observations. Output: a review report in `docs/reviews/YYYY-MM-DD-arch-review.md`.
 
 ## Pass Strategy
 
-Run all eight passes sequentially. Each pass is exhaustive — every file in scope is examined. Write observations to `findings.md` after each pass (the 2-action rule). Re-read `findings.md` before the final pass to synthesize.
+Run all eight passes sequentially. Each pass is exhaustive — every file in scope is examined.
+
+Before Pass 1, create `docs/reviews/YYYY-MM-DD-arch-review.md` with the header and write its relative path to `docs/reviews/.active_report`. Append each pass's section to the report as the pass completes. Re-read the report before the final pass to synthesize.
 
 ### Pass 1 — Inventory & File Map
 
@@ -115,7 +122,7 @@ Find the same thing done differently:
 
 ## Output Format
 
-Write the review to `docs/reviews/arch-YYYY-MM-DD.md` with these sections:
+The report is built incrementally: the header at creation, each pass's section appended as the pass completes, and the synthesis sections (Executive Summary, Recommendations, Strengths) written on completion. The final report in `docs/reviews/YYYY-MM-DD-arch-review.md` contains these sections:
 
 ### 1. Executive Summary
 
@@ -175,6 +182,13 @@ Numbered list of what the codebase does well. Be specific — reference actual p
 ### Appendix
 
 File size distribution histogram. Any supplementary data.
+
+On completion, write the synthesis sections, then clear `docs/reviews/.active_report`.
+
+## Respondami notes
+
+- The `PreCompact` hook re-emits the in-progress report (marker-wrapped) into the compaction summary, so a long review that triggers compaction resumes with the full findings context instead of re-reviewing covered files.
+- `docs/reviews/.active_report` pins the active report's relative path; the hook no-ops when the state file is missing (e.g., after completion) or when the path doesn't resolve.
 
 ---
 
