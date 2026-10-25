@@ -324,6 +324,114 @@ OUT=$(sh "$GATESTOP" 2>&1); RC=$?
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
+# Test 18: resolver — single project (CWD .planning) regression
+# ---------------------------------------------------------------------------
+mkdir -p t18 && cd t18 || exit 1
+mkdir -p .planning/2026-01-01-a
+echo x > .planning/2026-01-01-a/task_plan.md
+RESOLVED=$(sh "$RESOLVER")
+[ "$RESOLVED" = "${PWD}/.planning/2026-01-01-a" ] && ok "18a single: CWD plan" || bad "18a single: CWD plan" "got: $RESOLVED"
+cd "$WORK" || exit 1
+
+# ---------------------------------------------------------------------------
+# Test 19: resolver — multi-project, recency wins
+# ---------------------------------------------------------------------------
+mkdir -p t19 && cd t19 || exit 1
+mkdir -p projA/.planning/2026-01-01-a projB/.planning/2026-01-02-b
+echo x > projA/.planning/2026-01-01-a/task_plan.md
+echo x > projB/.planning/2026-01-02-b/task_plan.md
+touch -d '2026-01-01 10:00' projA/.planning/2026-01-01-a/task_plan.md
+touch -d '2026-01-02 10:00' projB/.planning/2026-01-02-b/task_plan.md
+RESOLVED=$(sh "$RESOLVER")
+[ "$RESOLVED" = "${PWD}/projB/.planning/2026-01-02-b" ] && ok "19a multi: recency wins" || bad "19a multi: recency wins" "got: $RESOLVED"
+cd "$WORK" || exit 1
+
+# ---------------------------------------------------------------------------
+# Test 20: resolver — multi-project, CWD plan takes precedence
+# ---------------------------------------------------------------------------
+cd t19 || exit 1
+mkdir -p .planning/2026-01-01-c
+echo x > .planning/2026-01-01-c/task_plan.md
+touch -d '2026-01-01 09:00' .planning/2026-01-01-c/task_plan.md
+RESOLVED=$(sh "$RESOLVER")
+[ "$RESOLVED" = "${PWD}/.planning/2026-01-01-c" ] && ok "20a multi: CWD precedence" || bad "20a multi: CWD precedence" "got: $RESOLVED"
+cd "$WORK" || exit 1
+
+# ---------------------------------------------------------------------------
+# Test 21: resolver — multi-project, active-file honored
+# ---------------------------------------------------------------------------
+mkdir -p t21 && cd t21 || exit 1
+mkdir -p projA/.planning/2026-01-01-a projA/.planning/2026-01-05-z
+echo x > projA/.planning/2026-01-01-a/task_plan.md
+echo x > projA/.planning/2026-01-05-z/task_plan.md
+touch -d '2026-01-01 10:00' projA/.planning/2026-01-01-a/task_plan.md
+touch -d '2026-01-05 10:00' projA/.planning/2026-01-05-z/task_plan.md
+# .active_plan points to the older plan → it wins over recency.
+printf '2026-01-01-a\n' > projA/.planning/.active_plan
+RESOLVED=$(sh "$RESOLVER")
+[ "$RESOLVED" = "${PWD}/projA/.planning/2026-01-01-a" ] && ok "21a multi: active-file honored" || bad "21a multi: active-file honored" "got: $RESOLVED"
+cd "$WORK" || exit 1
+
+# ---------------------------------------------------------------------------
+# Test 22: resolver — multi-project tie-break (same mtime → first slug)
+# ---------------------------------------------------------------------------
+mkdir -p t22 && cd t22 || exit 1
+mkdir -p projB/.planning/2026-01-02-b projA/.planning/2026-01-01-a
+echo x > projB/.planning/2026-01-02-b/task_plan.md
+echo x > projA/.planning/2026-01-01-a/task_plan.md
+touch -d '2026-01-01 10:00' projA/.planning/2026-01-01-a/task_plan.md projB/.planning/2026-01-02-b/task_plan.md
+RESOLVED=$(sh "$RESOLVER")
+[ "$RESOLVED" = "${PWD}/projA/.planning/2026-01-01-a" ] && ok "22a multi: tie-break first slug" || bad "22a multi: tie-break first slug" "got: $RESOLVED"
+cd "$WORK" || exit 1
+
+# ---------------------------------------------------------------------------
+# Test 23: resolver — hidden subdir skipped
+# ---------------------------------------------------------------------------
+mkdir -p t23 && cd t23 || exit 1
+mkdir -p .hidden/.planning/2026-01-01-h
+echo x > .hidden/.planning/2026-01-01-h/task_plan.md
+RESOLVED=$(sh "$RESOLVER")
+[ -z "$RESOLVED" ] && ok "23a multi: hidden subdir skipped" || bad "23a multi: hidden subdir skipped" "got: $RESOLVED"
+cd "$WORK" || exit 1
+
+# ---------------------------------------------------------------------------
+# Test 24: resolver — depth-1 only (a/b/.planning not found)
+# ---------------------------------------------------------------------------
+mkdir -p t24 && cd t24 || exit 1
+mkdir -p a/b/.planning/2026-01-01-n
+echo x > a/b/.planning/2026-01-01-n/task_plan.md
+RESOLVED=$(sh "$RESOLVER")
+[ -z "$RESOLVED" ] && ok "24a multi: depth-1 only" || bad "24a multi: depth-1 only" "got: $RESOLVED"
+cd "$WORK" || exit 1
+
+# ---------------------------------------------------------------------------
+# Test 25: resolver — no plan anywhere → empty, exit 0
+# ---------------------------------------------------------------------------
+mkdir -p t25 && cd t25 || exit 1
+mkdir -p emptyproj
+echo x > emptyproj/README.md
+RESOLVED=$(sh "$RESOLVER"); RC=$?
+[ -z "$RESOLVED" ] && [ "$RC" = "0" ] && ok "25a multi: no plan → empty" || bad "25a multi: no plan → empty" "got: $RESOLVED rc=$RC"
+cd "$WORK" || exit 1
+
+# ---------------------------------------------------------------------------
+# Test 26: enforce-2action — multi-project CWD now counts + blocks
+# ---------------------------------------------------------------------------
+mkdir -p t26 && cd t26 || exit 1
+mkdir -p proj/.planning/2026-01-01-a
+echo x > proj/.planning/2026-01-01-a/task_plan.md
+# N_READ=2: two reads allowed, third blocked — via the subdir-resolved plan.
+for i in 1 2; do
+    OUT=$(N_READ=2 N_WRITE=9 TOOL_NAME=read TOOL_INPUT='{"path":"src/a.rs"}' sh "$ENFORCE"); RC=$?
+    [ "$RC" = "0" ] && ok "26a multi enforce read $i: allowed" || bad "26a multi enforce read $i: allowed" "exit $RC"
+done
+OUT=$(N_READ=2 N_WRITE=9 TOOL_NAME=read TOOL_INPUT='{"path":"src/b.rs"}' sh "$ENFORCE" 2>&1); RC=$?
+[ "$RC" = "2" ] && ok "26b multi enforce read 3: blocked" || bad "26b multi enforce read 3: blocked" "exit $RC"
+assert_contains "26c multi enforce: block reason" "$OUT" "2-Action Rule"
+[ -f proj/.planning/2026-01-01-a/.hook_state ] && ok "26d multi enforce: state file in project" || bad "26d multi enforce: state file in project" "no state file"
+cd "$WORK" || exit 1
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
