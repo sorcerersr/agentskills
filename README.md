@@ -19,6 +19,17 @@ The skills shape a spec-driven development loop:
    report is clean, then the changes are committed. Findings reports land
    in `docs/reviews/`.
 
+```mermaid
+flowchart LR
+    A[Idea or simple spec] --> R[refine]
+    R -->|design spec<br/>docs/plans/| P[planning-with-files]
+    P -->|phased plan<br/>.planning/| I[implementation]
+    I -->|staged changes| RV[review]
+    RV -->|C/H/M findings| F[fix round]
+    F --> RV
+    RV -->|clean report<br/>docs/reviews/| C[commit]
+```
+
 `caveman-commit` words the commit message; the language guideline skills
 (`rust-guidelines`, `typescript-guidelines`, `java-guidelines`) feed the
 review's compliance pass.
