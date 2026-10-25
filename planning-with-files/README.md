@@ -37,16 +37,14 @@ its own directory, so multiple tasks in the same repo coexist; switch with
 
 ## Lifecycle hooks
 
-The frontmatter declares five hooks that keep the plan in the model's
+The frontmatter declares three hooks that keep the plan in the model's
 attention window:
 
 | Event          | Behavior                                                                     |
 | -------------- | ---------------------------------------------------------------------------- |
-| `UserPromptSubmit` | Injects full `task_plan.md` + recent `progress.md`, wrapped in `===BEGIN/END PLAN DATA===` delimiters |
-| `PreToolUse`   | Injects the plan head (first 30 lines) before `Read`/`Write`/`Edit`/`Bash`  |
-| `PostToolUse`  | Reminds to update `progress.md` after `Write`/`Edit` (skips plan-file edits) |
-| `Stop`         | Reports phase-completion status (advisory only)                              |
+| `PreToolUse`   | 2-Action Rule enforcement: blocks (exit 2) after 4 reads or 2 writes of non-planning files until findings are persisted to `findings.md` |
 | `PreCompact`   | Injects the full plan into the compaction summary so the plan survives compaction |
+| `Stop`         | Completion gate: vetoes the stop (exit 2) while the active plan is incomplete |
 
 `matcher` fields filter which tool calls fire the hooks; the scripts also
 self-filter on `TOOL_NAME` as a second defense layer. If no plan file exists,

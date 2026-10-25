@@ -12,9 +12,9 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd 2>/dev/null)" || SCRIPT_DIR="."
 INJECT="${SCRIPT_DIR}/inject-plan.sh"
-POST="${SCRIPT_DIR}/post-tool-use.sh"
 ENFORCE="${SCRIPT_DIR}/enforce-2action.sh"
-LOGC="${SCRIPT_DIR}/log-compact.sh"
+GATESTOP="${SCRIPT_DIR}/gate-stop.sh"
+CHECK="${SCRIPT_DIR}/check-complete.sh"
 ATTEST="${SCRIPT_DIR}/attest-plan.sh"
 INIT="${SCRIPT_DIR}/init-session.sh"
 RESOLVER="${SCRIPT_DIR}/resolve-plan-dir.sh"
@@ -150,127 +150,70 @@ OUT=$(sh "$INJECT" --context=precompact)
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
-# Test 5: post-tool-use appends a mechanical line (no reminder)
+# Test 5: .planning/-only flow (init-session.sh owns creation)
 # ---------------------------------------------------------------------------
 mkdir -p t5 && cd t5 || exit 1
-write_plan7
-printf '# Progress Log\n\n## Session: 2026-10-24\n' > progress.md
-mkdir -p src
-printf 'fn main() {}\n' > src/main.rs
-OUT=$(TOOL_NAME=write TOOL_INPUT='{"path":"src/main.rs"}' sh "$POST")
-[ -z "$OUT" ] && ok "5a post: no reminder output" || bad "5a post: no reminder output" "output: $OUT"
-LINE=$(grep -E '^- \[[0-9]{2}:[0-9]{2}:[0-9]{2}\] write: src/main.rs \(1 lines\)$' progress.md)
-[ -n "$LINE" ] && ok "5b hook log line format" || bad "5b hook log line format" "no matching line in:"
-for l in $(tail -3 progress.md); do printf '      %s\n' "$l"; done
-OUT=$(TOOL_NAME=write TOOL_INPUT='{"path":"src/util.rs"}' sh "$POST")
-COUNT=$(grep -cE '^- \[[0-9]{2}:[0-9]{2}:[0-9]{2}\] (write|edit):' progress.md)
-[ "$COUNT" = "2" ] && ok "5c second line appended" || bad "5c second line appended" "expected 2 hook log lines, got $COUNT"
-cd "$WORK" || exit 1
-
-# ---------------------------------------------------------------------------
-# Test 6: loop guard — edits to planning files are silent
-# ---------------------------------------------------------------------------
-cd t5 || exit 1
-BEFORE=$(wc -l < progress.md)
-OUT=$(TOOL_NAME=edit TOOL_INPUT='{"path":"progress.md"}' sh "$POST")
-[ -z "$OUT" ] && ok "6a guard progress.md silent" || bad "6a guard progress.md silent" "output: $OUT"
-OUT=$(TOOL_NAME=edit TOOL_INPUT='{"path":"task_plan.md"}' sh "$POST")
-[ -z "$OUT" ] && ok "6b guard task_plan.md silent" || bad "6b guard task_plan.md silent" "output: $OUT"
-AFTER=$(wc -l < progress.md)
-[ "$BEFORE" = "$AFTER" ] && ok "6c no append for planning files" || bad "6c no append for planning files" "progress.md grew"
-cd "$WORK" || exit 1
-
-# ---------------------------------------------------------------------------
-# Test 7: no plan → post silent
-# ---------------------------------------------------------------------------
-mkdir -p t7 && cd t7 || exit 1
-OUT=$(TOOL_NAME=write TOOL_INPUT='{"path":"a.rs"}' sh "$POST")
-[ -z "$OUT" ] && ok "7a no plan: post silent" || bad "7a no plan: post silent" "output: $OUT"
-cd "$WORK" || exit 1
-
-# ---------------------------------------------------------------------------
-# Test 8: progress.md without Hook Log section → section created
-# ---------------------------------------------------------------------------
-mkdir -p t8 && cd t8 || exit 1
-write_plan7
-printf '# Progress Log\n\nno section yet\n' > progress.md
-printf 'x\n' > a.rs
-TOOL_NAME=write TOOL_INPUT='{"path":"a.rs"}' sh "$POST" >/dev/null
-grep -q '^## Hook Log' progress.md && ok "8a section created" || bad "8a section created" "no ## Hook Log heading"
-grep -qE '^- \[[0-9]{2}:[0-9]{2}:[0-9]{2}\] write: a.rs \(1 lines\)$' progress.md && ok "8b line under section" || bad "8b line under section" "no hook log line"
-cd "$WORK" || exit 1
-
-# ---------------------------------------------------------------------------
-# Test 9: .planning/-only flow (init-session.sh owns creation)
-# ---------------------------------------------------------------------------
-mkdir -p t9 && cd t9 || exit 1
 OUT=$(sh "$INIT" "Acme CLI")
 PLAN_ID_LINE=$(printf '%s\n' "$OUT" | grep '^PLAN_ID=' | cut -d= -f2)
-[ -n "$PLAN_ID_LINE" ] && ok "9a init: PLAN_ID printed" || bad "9a init: PLAN_ID printed" "no PLAN_ID in output"
-PLAN_DIR_T9=".planning/${PLAN_ID_LINE}"
-[ -f "${PLAN_DIR_T9}/task_plan.md" ] && [ -f "${PLAN_DIR_T9}/findings.md" ] && [ -f "${PLAN_DIR_T9}/progress.md" ] \
-    && ok "9b init: 3 files in plan dir" || bad "9b init: 3 files in plan dir" "missing files in ${PLAN_DIR_T9}"
+[ -n "$PLAN_ID_LINE" ] && ok "5a init: PLAN_ID printed" || bad "5a init: PLAN_ID printed" "no PLAN_ID in output"
+PLAN_DIR_T5=".planning/${PLAN_ID_LINE}"
+[ -f "${PLAN_DIR_T5}/task_plan.md" ] && [ -f "${PLAN_DIR_T5}/findings.md" ] && [ -f "${PLAN_DIR_T5}/progress.md" ] \
+    && ok "5b init: 3 files in plan dir" || bad "5b init: 3 files in plan dir" "missing files in ${PLAN_DIR_T5}"
 [ ! -f task_plan.md ] && [ ! -f findings.md ] && [ ! -f progress.md ] \
-    && ok "9c init: root stays clean" || bad "9c init: root stays clean" "planning file leaked to root"
+    && ok "5c init: root stays clean" || bad "5c init: root stays clean" "planning file leaked to root"
 [ -f .planning/.active_plan ] && [ "$(cat .planning/.active_plan)" = "$PLAN_ID_LINE" ] \
-    && ok "9d init: .active_plan pinned" || bad "9d init: .active_plan pinned" "active plan mismatch"
+    && ok "5d init: .active_plan pinned" || bad "5d init: .active_plan pinned" "active plan mismatch"
 RESOLVED=$(sh "$RESOLVER")
-[ "$RESOLVED" = "${PWD}/${PLAN_DIR_T9}" ] && ok "9e resolver: prints plan dir" || bad "9e resolver: prints plan dir" "got: $RESOLVED"
-printf 'fn main() {}\n' > src_file.rs
-OUT=$(TOOL_NAME=write TOOL_INPUT='{"path":"src_file.rs"}' sh "$POST")
-[ -z "$OUT" ] && ok "9f post: no reminder" || bad "9f post: no reminder" "output: $OUT"
-grep -qE '^- \[[0-9]{2}:[0-9]{2}:[0-9]{2}\] write: src_file.rs \(1 lines\)$' "${PLAN_DIR_T9}/progress.md" \
-    && ok "9g post: line in plan progress.md" || bad "9g post: line in plan progress.md" "no hook log line in plan dir"
-[ ! -f progress.md ] && ok "9h post: no root progress.md" || bad "9h post: no root progress.md" "root progress.md created"
+[ "$RESOLVED" = "${PWD}/${PLAN_DIR_T5}" ] && ok "5e resolver: prints plan dir" || bad "5e resolver: prints plan dir" "got: $RESOLVED"
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
-# Test 10: enforce-2action — read counter increments, blocks at N_READ
+# Test 6: enforce-2action — read counter increments, blocks at N_READ
 # ---------------------------------------------------------------------------
-mkdir -p t10 && cd t10 || exit 1
+mkdir -p t6 && cd t6 || exit 1
 write_plan7
 # Root task_plan.md (legacy). N_READ=2 → 2 reads allowed, 3rd blocked.
 for i in 1 2; do
     OUT=$(N_READ=2 N_WRITE=9 TOOL_NAME=read TOOL_INPUT='{"path":"src/a.rs"}' sh "$ENFORCE"); RC=$?
-    [ "$RC" = "0" ] && ok "10a read $i: allowed" || bad "10a read $i: allowed" "exit $RC"
+    [ "$RC" = "0" ] && ok "6a read $i: allowed" || bad "6a read $i: allowed" "exit $RC"
 done
 # Third read hits the threshold → block.
 OUT=$(N_READ=2 N_WRITE=9 TOOL_NAME=read TOOL_INPUT='{"path":"src/b.rs"}' sh "$ENFORCE" 2>&1); RC=$?
-[ "$RC" = "2" ] && ok "10b read 3: blocked" || bad "10b read 3: blocked" "exit $RC"
-assert_contains "10c block reason" "$OUT" "2-Action Rule"
+[ "$RC" = "2" ] && ok "6b read 3: blocked" || bad "6b read 3: blocked" "exit $RC"
+assert_contains "6c block reason" "$OUT" "2-Action Rule"
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
-# Test 11: enforce-2action — write counter increments, blocks at N_WRITE
+# Test 7: enforce-2action — write counter increments, blocks at N_WRITE
 # ---------------------------------------------------------------------------
-cd t10 || exit 1
+cd t6 || exit 1
 rm -f .hook_state
 # N_WRITE=2 → 2 writes allowed, 3rd blocked.
 for i in 1 2; do
     OUT=$(N_READ=9 N_WRITE=2 TOOL_NAME=write TOOL_INPUT='{"path":"src/a.rs"}' sh "$ENFORCE"); RC=$?
-    [ "$RC" = "0" ] && ok "11a write $i: allowed" || bad "11a write $i: allowed" "exit $RC"
+    [ "$RC" = "0" ] && ok "7a write $i: allowed" || bad "7a write $i: allowed" "exit $RC"
 done
 OUT=$(N_READ=9 N_WRITE=2 TOOL_NAME=write TOOL_INPUT='{"path":"src/b.rs"}' sh "$ENFORCE" 2>&1); RC=$?
-[ "$RC" = "2" ] && ok "11b write 3: blocked" || bad "11b write 3: blocked" "exit $RC"
+[ "$RC" = "2" ] && ok "7b write 3: blocked" || bad "7b write 3: blocked" "exit $RC"
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
-# Test 12: enforce-2action — write to a planning file resets the counters
+# Test 8: enforce-2action — write to a planning file resets the counters
 # ---------------------------------------------------------------------------
-cd t10 || exit 1
+cd t6 || exit 1
 rm -f .hook_state
 # Fill the write budget to the edge (N_WRITE=2 → 1 write).
 N_READ=9 N_WRITE=2 TOOL_NAME=write TOOL_INPUT='{"path":"src/a.rs"}' sh "$ENFORCE" >/dev/null
 # A write to findings.md resets → the next non-planning write is allowed.
 N_READ=9 N_WRITE=2 TOOL_NAME=write TOOL_INPUT='{"path":"findings.md"}' sh "$ENFORCE" >/dev/null
 OUT=$(N_READ=9 N_WRITE=2 TOOL_NAME=write TOOL_INPUT='{"path":"src/b.rs"}' sh "$ENFORCE" 2>&1); RC=$?
-[ "$RC" = "0" ] && ok "12a planning write reset: next write allowed" || bad "12a planning write reset: next write allowed" "exit $RC: $OUT"
+[ "$RC" = "0" ] && ok "8a planning write reset: next write allowed" || bad "8a planning write reset: next write allowed" "exit $RC: $OUT"
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
-# Test 13: enforce-2action — read of a planning file neither counts nor resets
+# Test 9: enforce-2action — read of a planning file neither counts nor resets
 # ---------------------------------------------------------------------------
-cd t10 || exit 1
+cd t6 || exit 1
 rm -f .hook_state
 # N_READ=2: two non-planning reads reach the budget; a planning read in
 # between must not count.
@@ -279,32 +222,32 @@ N_READ=2 N_WRITE=9 TOOL_NAME=read TOOL_INPUT='{"path":"task_plan.md"}' sh "$ENFO
 N_READ=2 N_WRITE=9 TOOL_NAME=read TOOL_INPUT='{"path":"src/b.rs"}' sh "$ENFORCE" >/dev/null
 # Next non-planning read → at threshold → block (the planning read didn't count).
 OUT=$(N_READ=2 N_WRITE=9 TOOL_NAME=read TOOL_INPUT='{"path":"src/c.rs"}' sh "$ENFORCE" 2>&1); RC=$?
-[ "$RC" = "2" ] && ok "13a planning read no count: blocked" || bad "13a planning read no count: blocked" "exit $RC"
+[ "$RC" = "2" ] && ok "9a planning read no count: blocked" || bad "9a planning read no count: blocked" "exit $RC"
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
-# Test 14: enforce-2action — fail-open on corrupt state
+# Test 10: enforce-2action — fail-open on corrupt state
 # ---------------------------------------------------------------------------
-cd t10 || exit 1
+cd t6 || exit 1
 printf 'garbage not a counter\n' > .hook_state
 OUT=$(N_READ=1 N_WRITE=1 TOOL_NAME=read TOOL_INPUT='{"path":"src/a.rs"}' sh "$ENFORCE" 2>&1); RC=$?
 # Corrupt state → treated as zeroed → the read is allowed (fail-open).
-[ "$RC" = "0" ] && ok "14a corrupt state: fail-open" || bad "14a corrupt state: fail-open" "exit $RC"
+[ "$RC" = "0" ] && ok "10a corrupt state: fail-open" || bad "10a corrupt state: fail-open" "exit $RC"
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
-# Test 15: enforce-2action — no active plan → no-op
+# Test 11: enforce-2action — no active plan → no-op
 # ---------------------------------------------------------------------------
-mkdir -p t15 && cd t15 || exit 1
+mkdir -p t11 && cd t11 || exit 1
 OUT=$(N_READ=1 N_WRITE=1 TOOL_NAME=read TOOL_INPUT='{"path":"src/a.rs"}' sh "$ENFORCE" 2>&1); RC=$?
-[ "$RC" = "0" ] && [ -z "$OUT" ] && ok "15a no plan: no-op" || bad "15a no plan: no-op" "exit $RC out=$OUT"
-[ ! -f .hook_state ] && ok "15b no plan: no state file" || bad "15b no plan: no state file" "state file created"
+[ "$RC" = "0" ] && [ -z "$OUT" ] && ok "11a no plan: no-op" || bad "11a no plan: no-op" "exit $RC out=$OUT"
+[ ! -f .hook_state ] && ok "11b no plan: no state file" || bad "11b no plan: no state file" "state file created"
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
-# Test 16: enforce-2action — bash read-like counts, other bash does not
+# Test 12: enforce-2action — bash read-like counts, other bash does not
 # ---------------------------------------------------------------------------
-cd t10 || exit 1
+cd t6 || exit 1
 rm -f .hook_state
 # N_READ=2: two read-like bashes reach the budget; other bash in between must
 # not count.
@@ -313,42 +256,71 @@ N_READ=2 N_WRITE=9 TOOL_NAME=bash TOOL_INPUT='{"command":"cargo build"}' sh "$EN
 N_READ=2 N_WRITE=9 TOOL_NAME=bash TOOL_INPUT='{"command":"rg bar src/"}' sh "$ENFORCE" >/dev/null
 # Next read-like bash → at threshold → block (the other bash didn't count).
 OUT=$(N_READ=2 N_WRITE=9 TOOL_NAME=bash TOOL_INPUT='{"command":"find src -name *.rs"}' sh "$ENFORCE" 2>&1); RC=$?
-[ "$RC" = "2" ] && ok "16a bash read-like counts: blocked" || bad "16a bash read-like counts: blocked" "exit $RC"
+[ "$RC" = "2" ] && ok "12a bash read-like counts: blocked" || bad "12a bash read-like counts: blocked" "exit $RC"
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
-# Test 17: enforce-2action — bash writing to a planning file resets
+# Test 13: enforce-2action — bash writing to a planning file resets
 # ---------------------------------------------------------------------------
-cd t10 || exit 1
+cd t6 || exit 1
 rm -f .hook_state
 N_READ=9 N_WRITE=2 TOOL_NAME=bash TOOL_INPUT='{"command":"echo x > src/a.rs"}' sh "$ENFORCE" >/dev/null
 N_READ=9 N_WRITE=2 TOOL_NAME=bash TOOL_INPUT='{"command":"echo note >> findings.md"}' sh "$ENFORCE" >/dev/null
 OUT=$(N_READ=9 N_WRITE=2 TOOL_NAME=bash TOOL_INPUT='{"command":"echo y > src/b.rs"}' sh "$ENFORCE" 2>&1); RC=$?
-[ "$RC" = "0" ] && ok "17a bash planning write reset: allowed" || bad "17a bash planning write reset: allowed" "exit $RC: $OUT"
+[ "$RC" = "0" ] && ok "13a bash planning write reset: allowed" || bad "13a bash planning write reset: allowed" "exit $RC: $OUT"
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
-# Test 18: log-compact appends a line to progress.md
+# Test 14: check-complete.sh — manual mode always exits 0
 # ---------------------------------------------------------------------------
-cd t10 || exit 1
-printf '# Progress Log\n\n## Session: 2026-10-24\n' > progress.md
-OUT=$(COMPACT_TRIGGER=manual COMPACT_MESSAGES_REMOVED=42 sh "$LOGC")
-[ -z "$OUT" ] && ok "18a log-compact: silent" || bad "18a log-compact: silent" "output: $OUT"
-grep -q '^## Compactions' progress.md && ok "18b compactions section" || bad "18b compactions section" "no ## Compactions heading"
-grep -qE '^- \[[0-9]{2}:[0-9]{2}:[0-9]{2}\] compaction 1 \(manual\): 42 messages removed' progress.md \
-    && ok "18c compaction line" || bad "18c compaction line" "no compaction line"
-OUT=$(COMPACT_TRIGGER=auto COMPACT_MESSAGES_REMOVED=10 sh "$LOGC")
-grep -qE 'compaction 2 \(auto\): 10 messages removed' progress.md \
-    && ok "18d second compaction ordinal" || bad "18d second compaction ordinal" "no ordinal 2"
+mkdir -p t14 && cd t14 || exit 1
+write_plan7
+OUT=$(sh "$CHECK"); RC=$?
+[ "$RC" = "0" ] && ok "14a manual: incomplete → exit 0" || bad "14a manual: incomplete → exit 0" "exit $RC"
+assert_contains "14b manual: status line" "$OUT" "Task in progress"
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
-# Test 19: log-compact — no plan → no-op
+# Test 15: check-complete.sh --strict — exit codes
 # ---------------------------------------------------------------------------
-mkdir -p t19 && cd t19 || exit 1
-OUT=$(COMPACT_TRIGGER=auto sh "$LOGC")
-[ -z "$OUT" ] && ok "19a no plan: log-compact no-op" || bad "19a no plan: log-compact no-op" "output: $OUT"
-[ ! -f progress.md ] && ok "19b no plan: no progress.md" || bad "19b no plan: no progress.md" "progress.md created"
+cd t14 || exit 1
+OUT=$(sh "$CHECK" --strict); RC=$?
+[ "$RC" = "1" ] && ok "15a strict: incomplete → exit 1" || bad "15a strict: incomplete → exit 1" "exit $RC"
+# Mark all phases complete → strict exits 0.
+sed -i 's/\*\*Status:\*\* in_progress/**Status:** complete/' task_plan.md
+sed -i 's/\*\*Status:\*\* pending/**Status:** complete/' task_plan.md
+OUT=$(sh "$CHECK" --strict); RC=$?
+[ "$RC" = "0" ] && ok "15b strict: complete → exit 0" || bad "15b strict: complete → exit 0" "exit $RC"
+[ -z "$OUT" ] && ok "15c strict: silent" || bad "15c strict: silent" "output: $OUT"
+# No plan → strict exits 0 (nothing to check).
+cd "$WORK" || exit 1
+mkdir -p t15b && cd t15b || exit 1
+OUT=$(sh "$CHECK" --strict); RC=$?
+[ "$RC" = "0" ] && ok "15d strict: no plan → exit 0" || bad "15d strict: no plan → exit 0" "exit $RC"
+cd "$WORK" || exit 1
+
+# ---------------------------------------------------------------------------
+# Test 16: gate-stop.sh — vetoes the stop while the plan is incomplete
+# ---------------------------------------------------------------------------
+mkdir -p t16 && cd t16 || exit 1
+write_plan7
+OUT=$(sh "$GATESTOP" 2>&1); RC=$?
+[ "$RC" = "2" ] && ok "16a gate: incomplete → exit 2" || bad "16a gate: incomplete → exit 2" "exit $RC"
+assert_contains "16b gate: block reason" "$OUT" "Plan incomplete"
+assert_contains "16c gate: phase count" "$OUT" "5/7 phases complete"
+# Mark all phases complete → stop allowed.
+sed -i 's/\*\*Status:\*\* in_progress/**Status:** complete/' task_plan.md
+sed -i 's/\*\*Status:\*\* pending/**Status:** complete/' task_plan.md
+OUT=$(sh "$GATESTOP" 2>&1); RC=$?
+[ "$RC" = "0" ] && ok "16d gate: complete → exit 0" || bad "16d gate: complete → exit 0" "exit $RC"
+cd "$WORK" || exit 1
+
+# ---------------------------------------------------------------------------
+# Test 17: gate-stop.sh — no plan → no-op (exit 0)
+# ---------------------------------------------------------------------------
+mkdir -p t17 && cd t17 || exit 1
+OUT=$(sh "$GATESTOP" 2>&1); RC=$?
+[ "$RC" = "0" ] && [ -z "$OUT" ] && ok "17a gate: no plan → exit 0" || bad "17a gate: no plan → exit 0" "exit $RC out=$OUT"
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------

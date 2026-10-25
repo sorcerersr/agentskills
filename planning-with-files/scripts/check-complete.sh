@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Check if all phases in task_plan.md are complete
-# Always exits 0 — uses stdout for status reporting
-# Used by Stop hook to report task completion status
+# Always exits 0 in manual mode — uses stdout for status reporting
+# With --strict: exits 1 if any phase is incomplete (used by the Stop hook)
 #
 # Plan-file resolution (v2.40+):
 #   1. $1 (explicit path)
@@ -12,8 +12,17 @@
 # zero args now respects the active plan dir instead of silently defaulting to
 # the legacy root path.
 
-if [ -n "${1:-}" ]; then
-    PLAN_FILE="$1"
+STRICT=0
+PLAN_ARG=""
+for arg in "$@"; do
+    case "$arg" in
+        --strict) STRICT=1 ;;
+        *) PLAN_ARG="$arg" ;;
+    esac
+done
+
+if [ -n "$PLAN_ARG" ]; then
+    PLAN_FILE="$PLAN_ARG"
 else
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd 2>/dev/null)" || SCRIPT_DIR="."
     RESOLVER="${SCRIPT_DIR}/resolve-plan-dir.sh"
@@ -29,7 +38,9 @@ else
 fi
 
 if [ ! -f "$PLAN_FILE" ]; then
-    echo "[planning-with-files] No task_plan.md found — no active planning session."
+    if [ "$STRICT" -eq 0 ]; then
+        echo "[planning-with-files] No task_plan.md found — no active planning session."
+    fi
     exit 0
 fi
 
@@ -54,16 +65,27 @@ fi
 : "${IN_PROGRESS:=0}"
 : "${PENDING:=0}"
 
-# Report status (always exit 0 — incomplete task is a normal state)
-if [ "$COMPLETE" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
-    echo "[planning-with-files] ALL PHASES COMPLETE ($COMPLETE/$TOTAL). If the user has additional work, add new phases to task_plan.md before starting."
-else
-    echo "[planning-with-files] Task in progress ($COMPLETE/$TOTAL phases complete). Update progress.md before stopping."
-    if [ "$IN_PROGRESS" -gt 0 ]; then
-        echo "[planning-with-files] $IN_PROGRESS phase(s) still in progress."
+# Report status (manual mode always exits 0 — incomplete task is a normal state)
+# In --strict mode the output is suppressed (the hook only reads the exit code).
+if [ "$STRICT" -eq 0 ]; then
+    if [ "$COMPLETE" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
+        echo "[planning-with-files] ALL PHASES COMPLETE ($COMPLETE/$TOTAL). If the user has additional work, add new phases to task_plan.md before starting."
+    else
+        echo "[planning-with-files] Task in progress ($COMPLETE/$TOTAL phases complete). Update progress.md before stopping."
+        if [ "$IN_PROGRESS" -gt 0 ]; then
+            echo "[planning-with-files] $IN_PROGRESS phase(s) still in progress."
+        fi
+        if [ "$PENDING" -gt 0 ]; then
+            echo "[planning-with-files] $PENDING phase(s) pending."
+        fi
     fi
-    if [ "$PENDING" -gt 0 ]; then
-        echo "[planning-with-files] $PENDING phase(s) pending."
+fi
+
+# --strict: exit 1 if any phase is incomplete (no plan → 0, nothing to check)
+if [ "$STRICT" -eq 1 ]; then
+    if [ "$COMPLETE" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
+        exit 0
     fi
+    exit 1
 fi
 exit 0
