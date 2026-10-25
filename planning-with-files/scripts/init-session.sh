@@ -114,9 +114,17 @@ Phase 1
 - [ ] Document test results
 - **Status:** pending
 
-### Phase 5: Delivery
-- [ ] Review outputs
+### Phase 5: Review
+- [ ] Stage all changes (`git add -A`)
+- [ ] Run the review skill on the staged changes
+- [ ] If C/H/M findings: append a Fix phase, address them, re-review
+- [ ] Complete only when the latest staged review shows 0 Critical/High/Medium
+- **Status:** pending
+
+### Phase 6: Delivery
+- [ ] Commit staged changes (message via caveman-commit)
 - [ ] Deliver to user
+- [ ] Non-git repo: skip commit, note in progress.md
 - **Status:** pending
 
 ## Decisions Made

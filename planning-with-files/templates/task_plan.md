@@ -73,14 +73,26 @@ Phase 1
 - [ ] Fix any issues found
 - **Status:** pending
 
-### Phase 5: Delivery
+### Phase 5: Review
 <!-- 
-  WHAT: Final review and handoff to user.
-  WHY: Ensures nothing is forgotten and deliverables are complete.
+  WHAT: Run the review skill on the staged changes; loop fix/re-review until clean.
+  WHY: Catches C/H/M findings before they land in a commit.
+  Applies to code tasks in a git repo. Non-git: mark complete with a note.
 -->
-- [ ] Review all output files
-- [ ] Ensure deliverables are complete
+- [ ] Stage all changes (`git add -A`)
+- [ ] Run the review skill on the staged changes
+- [ ] If C/H/M findings: append a Fix phase, address them, re-review
+- [ ] Complete only when the latest staged review shows 0 Critical/High/Medium
+- **Status:** pending
+
+### Phase 6: Delivery
+<!-- 
+  WHAT: Commit the reviewed, staged changes and hand off.
+  WHY: The commit is the deliverable; the review gate guarantees its quality.
+-->
+- [ ] Commit staged changes (message via caveman-commit)
 - [ ] Deliver to user
+- [ ] Non-git repo: skip commit, note in progress.md
 - **Status:** pending
 
 ## Key Questions

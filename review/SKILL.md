@@ -1,7 +1,6 @@
 ---
 name: review
-description: Systematic multi-pass code review (Rust, TypeScript, Java) — whole project, single file, or changeset. Outputs findings to docs/reviews/.
-disable-model-invocation: true
+description: Systematic multi-pass code review for Rust, TypeScript, Java — whole project, single file, commit, or staged changes. Findings report in docs/reviews/. Use when the user asks to review code, or when the planning-with-files Review phase runs.
 hooks:
   PreCompact:
     - hooks:

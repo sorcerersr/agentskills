@@ -149,6 +149,20 @@ When all phases are done but the user requests additional work:
 - Log a new session entry in `progress.md`
 - Continue the planning workflow as normal
 
+## Review Gate
+
+Applies to the Review phase of code tasks in a git repo. Non-git repo: mark Review complete with a note in `progress.md`; Delivery skips the commit.
+
+1. When the last implementation phase is complete, run `git add -A` and mark the Review phase `in_progress`.
+2. Invoke the `review` skill on the staged changes.
+3. Read the summary table of the report it wrote.
+4. 0 Critical/High/Medium → mark Review `complete`, proceed to Delivery.
+5. ≥1 C/H/M → append a Fix phase after Review: one checkbox per finding, each citing the finding id (C-1, H-2, M-3). Mark it `in_progress`. Completion: every finding fixed and changes re-staged (`git add -A`).
+6. Fix phase complete → back to step 2 (a fresh report is written).
+7. After 3 fix cycles with C/H/M findings remaining → stop the loop and escalate to the user: list the open findings and what was tried (3-Strike rule).
+
+Delivery commits the reviewed, staged changes; the commit message comes from the `caveman-commit` skill.
+
 ## The 3-Strike Error Protocol
 
 ```
