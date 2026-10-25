@@ -2,6 +2,27 @@
 
 A curated collection of AI agent skills. Some are original, others are modified from great work by the community. Everything lives here for easy management and consistent workflow.
 
+## Workflow
+
+The skills shape a spec-driven development loop:
+
+1. **Refine** — start from an idea or a simple spec. The `refine` skill
+   interviews you through the design decisions, one at a time, until the
+   result is an implementation-ready design spec in `docs/plans/`.
+2. **Plan & implement** — `planning-with-files` turns the design into a
+   file-based plan in `.planning/`, broken into phases. The plan files act
+   as working memory on disk, so the task survives context compaction and
+   session breaks.
+3. **Review & commit** — when implementation is done, the changes are
+   staged and the `review` skill reviews them. Critical, high, or medium
+   findings trigger a fix round and a re-review; the loop repeats until the
+   report is clean, then the changes are committed. Findings reports land
+   in `docs/reviews/`.
+
+`caveman-commit` words the commit message; the language guideline skills
+(`rust-guidelines`, `typescript-guidelines`, `java-guidelines`) feed the
+review's compliance pass.
+
 | Skill | Description | Source |
 | --- | --- | --- |
 | arch-review | Architecture review for any Rust codebase — modularization, separation of concerns, call hierarchy, memory, performance, inconsistencies. | self |
@@ -15,10 +36,11 @@ A curated collection of AI agent skills. Some are original, others are modified 
 | typescript-guidelines | Enforces Google TypeScript Style Guide discipline with guideline files. | Converted from the [Google TypeScript Style Guide](https://tsguide.google.com) (CC BY 3.0) |
 | writing-great-skills | Reference for writing and editing skills well | By [Matt Pocock](https://github.com/mattpocock/skills) |
 
-> **Note:** This is an early-stage project. The long-term goal is a complete skill-based spec-driven development (SDD) workflow. Some pieces are still missing, but the foundation is laid.
+> **Note:** This is an early-stage project. The long-term goal is a complete
+> skill-based spec-driven development (SDD) workflow.
 >
 > **Current state & roadmap:**
-> - **Refine → Implement** flow works well end-to-end.
-> - Requirements gathering needs more structure — likely a dedicated skill, separate from refine.
-> - **Planning-with-files** handles implementation well, especially for local LLMs with limited context windows (sessions split cleanly by phase).
-> - **Review & verification** is the major missing piece — needs a skill to validate implementations against specs.
+> - The refine → planning-with-files → review loop works end-to-end,
+>   including the review gate's fix rounds.
+> - Requirements gathering needs more structure — likely a dedicated skill,
+>   separate from refine.
