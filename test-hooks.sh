@@ -1,5 +1,5 @@
 #!/bin/sh
-# Tests for precompact-emit.sh (identical in refine/, code-health-check/, arch-review/).
+# Tests for precompact-emit.sh (identical in refine/, review/, arch-review/).
 # Run from anywhere: sh test-hooks.sh
 set -u
 
@@ -9,7 +9,7 @@ FAIL=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; FAIL=1; }
 
-for skill in refine code-health-check arch-review; do
+for skill in refine review arch-review; do
     SCRIPT="$ROOT/$skill/scripts/precompact-emit.sh"
     if [ ! -x "$SCRIPT" ]; then
         fail "$skill: script missing or not executable"
@@ -54,7 +54,7 @@ done
 
 # 4. all three copies byte-identical
 A=$(md5sum "$ROOT/refine/scripts/precompact-emit.sh" | cut -d' ' -f1)
-B=$(md5sum "$ROOT/code-health-check/scripts/precompact-emit.sh" | cut -d' ' -f1)
+B=$(md5sum "$ROOT/review/scripts/precompact-emit.sh" | cut -d' ' -f1)
 C=$(md5sum "$ROOT/arch-review/scripts/precompact-emit.sh" | cut -d' ' -f1)
 if [ "$A" = "$B" ] && [ "$B" = "$C" ]; then
     pass "three script copies byte-identical"

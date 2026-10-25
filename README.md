@@ -6,11 +6,11 @@ A curated collection of AI agent skills. Some are original, others are modified 
 | --- | --- | --- |
 | arch-review | Architecture review for any Rust codebase — modularization, separation of concerns, call hierarchy, memory, performance, inconsistencies. | self |
 | caveman-commit | Generate commit messages | [Caveman-Skills](https://github.com/JuliusBrussee/caveman) |
-| code-health-check | Code review for any Rust project — correctness, quality, and dependency audit. | self |
 | dev-tooling | Discover which dev tools are actually available and how to use them — a portable tool catalog plus a live environment probe. | self |
 | java-guidelines | Enforces Google Java Style Guide discipline with guideline files. | Converted from the [Google Java Style Guide](https://google.github.io/styleguide/javaguide.html) (CC BY 3.0) |
 | planning-with-files | Organize implementations by file based planning; lifecycle hooks keep the plan in context every turn (Respondami adaptation) | [planning-with-files](https://github.com/OthmanAdi/planning-with-files/) adapted for Respondami: frontmatter hook matchers, hard template reading, phase gate, dead content removed, mechanical hook log + smart plan head for local LLMs |
 | refine | Explore user intent and requirements to create a design spec. | Mostly self, with inspiration from Reddit and the grill-me skill by [Matt Pocock](https://github.com/mattpocock/skills) |
+| review | Systematic multi-pass code review (Rust, TypeScript, Java) — whole project, single file, or changeset. | self |
 | rust-guidelines | Enforces Microsoft-style Rust development discipline with guideline files. | [ms-rust-skill](https://gitlab.com/lx-industries/ms-rust-skill) with some minor modifications |
 | typescript-guidelines | Enforces Google TypeScript Style Guide discipline with guideline files. | Converted from the [Google TypeScript Style Guide](https://tsguide.google.com) (CC BY 3.0) |
 | writing-great-skills | Reference for writing and editing skills well | By [Matt Pocock](https://github.com/mattpocock/skills) |

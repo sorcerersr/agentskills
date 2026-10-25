@@ -219,4 +219,4 @@ Read each file in full. For large files (>500 lines), read in sections if needed
 ## Scope
 
 **In scope**: Architecture, modularization, separation of concerns, call hierarchy, memory usage, performance, consistency, large files/functions.
-**Out of scope**: Style/formatting (clippy handles this), test coverage metrics, bug hunting (use code-health-check for that), documentation completeness, security audit.
+**Out of scope**: Style/formatting (clippy handles this), test coverage metrics, bug hunting (use the review skill for that), documentation completeness, security audit.
