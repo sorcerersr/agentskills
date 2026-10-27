@@ -19,7 +19,8 @@
 #   4. Otherwise → allow, increment the appropriate counter:
 #        read_count  ← Read on a non-planning file, or read-like Bash
 #                      (grep/rg/find/cat/ls/head/tail/git log/git diff) on a
-#                      non-planning file.
+#                      non-planning file. A leading "cd <path> &&"/";" prefix
+#                      is stripped before the read-like check.
 #        write_count ← Edit/Write on a non-planning file.
 #        other Bash (build/test, or on a planning file) → no increment.
 #
@@ -87,10 +88,17 @@ cmd_writes_planning() {
     printf '%s' "$1" | grep -Eq '(task_plan|findings|progress)\.md' \
         && printf '%s' "$1" | grep -Eq '(>>?|(^|[[:space:]])tee[[:space:]]|sed[[:space:]]+-i|(^|[[:space:]])cp[[:space:]]|(^|[[:space:]])mv[[:space:]])'
 }
+# A read-like command (small allowlist). A leading "cd <path> &&"/";" prefix
+# is stripped first so "cd /x && grep …" classifies the same as "grep …".
+strip_cd_prefix() {
+    printf '%s' "$1" | sed -E 's/^[[:space:]]*cd[[:space:]]+[^;&|]*(&&|;)[[:space:]]*//'
+}
+
 # A read-like command (small allowlist).
 cmd_read_like() {
-    printf '%s' "$1" | grep -Eq '^[[:space:]]*(grep|rg|find|cat|ls|head|tail|less|more)([[:space:]]|$)' \
-        || printf '%s' "$1" | grep -Eq '^[[:space:]]*git[[:space:]]+(log|diff)([[:space:]]|$)'
+    _cmd="$(strip_cd_prefix "$1")"
+    printf '%s' "$_cmd" | grep -Eq '^[[:space:]]*(grep|rg|find|cat|ls|head|tail|less|more)([[:space:]]|$)' \
+        || printf '%s' "$_cmd" | grep -Eq '^[[:space:]]*git[[:space:]]+(log|diff)([[:space:]]|$)'
 }
 cmd_refs_planning() {
     printf '%s' "$1" | grep -Eq '(task_plan|findings|progress)\.md'

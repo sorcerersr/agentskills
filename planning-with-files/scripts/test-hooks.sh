@@ -260,6 +260,27 @@ OUT=$(N_READ=2 N_WRITE=9 TOOL_NAME=bash TOOL_INPUT='{"command":"find src -name *
 cd "$WORK" || exit 1
 
 # ---------------------------------------------------------------------------
+# Test 12b: enforce-2action — cd-prefixed read-like bash counts
+# ---------------------------------------------------------------------------
+cd t6 || exit 1
+rm -f .hook_state
+# N_READ=2: two cd-prefixed read-like bashes reach the budget; a cd-prefixed
+# non-read (build) in between must not count.
+N_READ=2 N_WRITE=9 TOOL_NAME=bash TOOL_INPUT='{"command":"cd /proj && grep foo src/a.rs"}' sh "$ENFORCE" >/dev/null
+N_READ=2 N_WRITE=9 TOOL_NAME=bash TOOL_INPUT='{"command":"cd /proj && cargo build 2>&1 | grep -E error"}' sh "$ENFORCE" >/dev/null
+N_READ=2 N_WRITE=9 TOOL_NAME=bash TOOL_INPUT='{"command":"cd /proj; ls src/"}' sh "$ENFORCE" >/dev/null
+# Next cd-prefixed read-like bash → at threshold → block (build didn't count).
+OUT=$(N_READ=2 N_WRITE=9 TOOL_NAME=bash TOOL_INPUT='{"command":"cd /proj && find src -name *.rs"}' sh "$ENFORCE" 2>&1); RC=$?
+[ "$RC" = "2" ] && ok "12b1 cd-prefixed read-like counts: blocked" || bad "12b1 cd-prefixed read-like counts: blocked" "exit $RC"
+# Over-match guards: neither is read-like, so a fresh budget allows both.
+rm -f .hook_state
+N_READ=9 N_WRITE=9 TOOL_NAME=bash TOOL_INPUT='{"command":"cd /proj && echo hi"}' sh "$ENFORCE" >/dev/null
+N_READ=9 N_WRITE=9 TOOL_NAME=bash TOOL_INPUT='{"command":"cdx && grep foo"}' sh "$ENFORCE" >/dev/null
+ST=$(grep '^read_count=' .hook_state | cut -d= -f2)
+[ "$ST" = "0" ] && ok "12b2 echo/cdx not counted" || bad "12b2 echo/cdx not counted" "read_count=$ST"
+cd "$WORK" || exit 1
+
+# ---------------------------------------------------------------------------
 # Test 13: enforce-2action — bash writing to a planning file resets
 # ---------------------------------------------------------------------------
 cd t6 || exit 1
